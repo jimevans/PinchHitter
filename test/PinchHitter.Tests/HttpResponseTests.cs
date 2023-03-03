@@ -27,11 +27,17 @@ public class HttpResponseTests
     [Test]
     public void TestResponseWithUnsupportedStatusCode()
     {
-        HttpResponse response = new();
-        response.StatusCode = HttpStatusCode.Unused;
+        HttpResponse response = new()
+        {
+            StatusCode = HttpStatusCode.Unused
+        };
+        string responseTextContent = Encoding.UTF8.GetString(response.ToByteArray());
+        string[] responseLines = responseTextContent.Split("\r\n");
         Assert.Multiple(() =>
         {
             Assert.That(response.ReasonPhrase, Is.Null);
+            Assert.That(responseLines, Has.Length.GreaterThan(0));
+            Assert.That(responseLines[0], Is.EqualTo("HTTP/1.1 306"));
         });
     }
 }
