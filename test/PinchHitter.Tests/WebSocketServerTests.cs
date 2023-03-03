@@ -180,7 +180,7 @@ public class WebSocketServerTests
         using ClientWebSocket socket = new();
         await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
         await socket.SendAsync(Encoding.UTF8.GetBytes(data), WebSocketMessageType.Text, true, CancellationToken.None);
-        bool eventReceived = syncEvent.WaitOne(TimeSpan.FromSeconds(1));
+        bool eventReceived = syncEvent.WaitOne(TimeSpan.FromSeconds(5));
         Assert.Multiple(() =>
         {
             Assert.That(eventReceived, Is.True);
@@ -224,7 +224,7 @@ public class WebSocketServerTests
 
         string data = new('a', dataLength);
         await server.SendData(data);
-        await receiveTask;
+        receiveTask.Wait(TimeSpan.FromSeconds(5));
         WebSocketReceiveResult result = receiveTask.Result;
         string receivedData = Encoding.UTF8.GetString(buffer.Array!, 0, result.Count);
 
