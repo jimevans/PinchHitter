@@ -119,4 +119,16 @@ public class HttpRequestProcessorTests
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
         });
     }
+
+    [Test]
+    public void TestProcessWebSocketUpgradeRequest()
+    {
+        HttpRequestProcessor processor = new();
+        HttpRequest request = HttpRequest.Parse("GET / HTTP/1.1\r\n\r\n");
+        request.Headers["Connection"] = new List<string>() { "Upgrade" };
+        request.Headers["Upgrade"] = new List<string>() { "websocket" };
+        request.Headers["Sec-WebSocket-Key"] = new List<string>() { "AWebSocketSecurityKey" };
+        HttpResponse response = processor.ProcessRequest(request);
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.SwitchingProtocols));
+    }
 }

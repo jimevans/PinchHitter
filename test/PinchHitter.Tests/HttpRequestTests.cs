@@ -17,6 +17,7 @@ public class HttpRequestTests
             Assert.That(request.Headers["User-Agent"], Has.Count.EqualTo(1));
             Assert.That(request.Headers["User-Agent"][0], Is.EqualTo("Test User Agent"));
             Assert.That(request.Body, Is.EqualTo("Hello world"));
+            Assert.That(request.IsWebSocketHandshakeRequest, Is.False);
         });
     }
 
@@ -49,5 +50,12 @@ public class HttpRequestTests
             Assert.That(request.Url, Is.EqualTo("/"));
             Assert.That(request.Body, Is.EqualTo("Hello world\nAnd good day"));
         });
+    }
+
+    [Test]
+    public void TestCanDetectWebSocketHandshakeRequest()
+    {
+        HttpRequest request = HttpRequest.Parse("GET / HTTP/1.1\r\nConnection:Upgrade\r\nUpgrade:websocket\r\nSec-WebSocket-Key:AWebSocketKey\r\n\r\nHello world");
+        Assert.That(request.IsWebSocketHandshakeRequest, Is.True);
     }
 }

@@ -23,14 +23,6 @@ public class WebSocketServerTests
         this.server = null;
     }
 
-    // [Test]
-    // public async Task TestClose()
-    // {
-    //     ClientWebSocket socket = new();
-    //     await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
-    //     this.server?.Stop();
-    // }
-
     [Test]
     public async Task TestServerCanRespondToCloseRequest()
     {
@@ -234,6 +226,42 @@ public class WebSocketServerTests
             Assert.That(receivedData, Is.Not.Null);
             Assert.That(receivedData, Is.EqualTo(data));
         });
+    }
+
+    [Test]
+    public async Task TestWebSocketServerLogsIncomingAndOutgoingData()
+    {
+        // Expected log includes WebSocket upgrade handshake request.
+        List<string> expectedLog = new()
+        { 
+            "Socket connected",
+            "RECV 154 bytes",
+            "SEND 258 bytes",
+            "RECV 26 bytes",
+            "SEND 16 bytes"
+        };
+
+        using ClientWebSocket socket = new();
+        await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
+
+        ManualResetEvent syncEvent = new(false);
+        string? receivedData = null;
+        this.server!.DataReceived += (sender, e) =>
+        {
+            receivedData = e.Data;
+            syncEvent.Set();
+        };
+
+        ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(1024, 1024);
+        Task<WebSocketReceiveResult> receiveTask = Task.Run(() => socket.ReceiveAsync(buffer, CancellationToken.None));
+
+        await socket.SendAsync(Encoding.UTF8.GetBytes("Received from client"), WebSocketMessageType.Text, true, CancellationToken.None);
+        bool eventReceived = syncEvent.WaitOne(TimeSpan.FromSeconds(1));
+        await server.SendData("Sent to client");
+        await receiveTask;
+        WebSocketReceiveResult result = receiveTask.Result;
+        string sentData = Encoding.UTF8.GetString(buffer.Array!, 0, result.Count);
+        Assert.That(this.server.Log, Is.EquivalentTo(expectedLog));
     }
 
     [Test]

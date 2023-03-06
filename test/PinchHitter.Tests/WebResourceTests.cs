@@ -53,11 +53,18 @@ public class WebResourceTests
     }
 
     [Test]
+    public void TestCanCreateWebSocketResponseResource()
+    {
+        WebResource resource = WebResource.CreateWebSocketHandshakeResponse("AWebSocketSecurityKey");
+        Assert.That(resource.Data, Is.Empty);
+    }
+
+    [Test]
     public void TestCanCreateHttpResponse()
     {
         byte[] content = Encoding.UTF8.GetBytes("hello world");
         WebResource resource = new(content);
-        HttpResponse response = resource.CreateHttpResponse(HttpStatusCode.OK);
+        HttpResponse response = resource.CreateHttpResponse();
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
@@ -77,6 +84,67 @@ public class WebResourceTests
             Assert.That(response.Headers["Content-Length"], Has.Count.EqualTo(1));
             Assert.That(response.Headers["Content-Length"][0], Is.EqualTo(content.Length.ToString()));
             Assert.That(response.BodyContent, Is.EquivalentTo(content));
+        });
+    }
+
+    [Test]
+    public void TestCanCreateHttpResponseWithStatusCode()
+    {
+        byte[] content = Encoding.UTF8.GetBytes("hello world");
+        WebResource resource = new(content);
+        HttpResponse response = resource.CreateHttpResponse(HttpStatusCode.NotFound);
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+            Assert.That(response.Headers, Has.Count.EqualTo(5));
+            Assert.That(response.Headers, Contains.Key("Connection"));
+            Assert.That(response.Headers["Connection"], Has.Count.EqualTo(1));
+            Assert.That(response.Headers["Connection"][0], Is.EqualTo("keep-alive"));
+            Assert.That(response.Headers, Contains.Key("Server"));
+            Assert.That(response.Headers["Server"], Has.Count.EqualTo(1));
+            Assert.That(response.Headers["Server"][0], Is.EqualTo("PinchHitter/0.1 .NET/6.0"));
+            Assert.That(response.Headers, Contains.Key("Date"));
+            Assert.That(response.Headers["Date"], Has.Count.EqualTo(1));
+            Assert.That(response.Headers, Contains.Key("Content-Type"));
+            Assert.That(response.Headers["Content-Type"], Has.Count.EqualTo(1));
+            Assert.That(response.Headers["Content-Type"][0], Is.EqualTo("text/html;charset=utf-8"));
+            Assert.That(response.Headers, Contains.Key("Content-Length"));
+            Assert.That(response.Headers["Content-Length"], Has.Count.EqualTo(1));
+            Assert.That(response.Headers["Content-Length"][0], Is.EqualTo(content.Length.ToString()));
+            Assert.That(response.BodyContent, Is.EquivalentTo(content));
+        });
+    }
+
+    [Test]
+    public void TestCanCreateHttpResponseForWebSocketHandshake()
+    {
+        WebResource resource = WebResource.CreateWebSocketHandshakeResponse("AWebSocketSecurityKey");
+        HttpResponse response = resource.CreateHttpResponse();
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.SwitchingProtocols));
+            Assert.That(response.Headers, Has.Count.EqualTo(7));
+            Assert.That(response.Headers, Contains.Key("Connection"));
+            Assert.That(response.Headers["Connection"], Has.Count.EqualTo(1));
+            Assert.That(response.Headers["Connection"][0], Is.EqualTo("Upgrade"));
+            Assert.That(response.Headers, Contains.Key("Server"));
+            Assert.That(response.Headers["Server"], Has.Count.EqualTo(1));
+            Assert.That(response.Headers["Server"][0], Is.EqualTo("PinchHitter/0.1 .NET/6.0"));
+            Assert.That(response.Headers, Contains.Key("Date"));
+            Assert.That(response.Headers["Date"], Has.Count.EqualTo(1));
+            Assert.That(response.Headers, Contains.Key("Content-Type"));
+            Assert.That(response.Headers["Content-Type"], Has.Count.EqualTo(1));
+            Assert.That(response.Headers["Content-Type"][0], Is.EqualTo("text/html;charset=utf-8"));
+            Assert.That(response.Headers, Contains.Key("Content-Length"));
+            Assert.That(response.Headers["Content-Length"], Has.Count.EqualTo(1));
+            Assert.That(response.Headers["Content-Length"][0], Is.EqualTo("0"));
+            Assert.That(response.Headers, Contains.Key("Upgrade"));
+            Assert.That(response.Headers["Upgrade"], Has.Count.EqualTo(1));
+            Assert.That(response.Headers["Upgrade"][0], Is.EqualTo("websocket"));
+            Assert.That(response.Headers, Contains.Key("Sec-WebSocket-Accept"));
+            Assert.That(response.Headers["Sec-WebSocket-Accept"], Has.Count.EqualTo(1));
+            Assert.That(response.Headers["Sec-WebSocket-Accept"][0], Is.EqualTo("QsbTE0fhpQ8hqOTV5cBS5qENwmQ="));
+            Assert.That(response.BodyContent, Is.Empty);
         });
     }
 

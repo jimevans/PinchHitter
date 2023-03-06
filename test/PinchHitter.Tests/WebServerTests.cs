@@ -61,7 +61,7 @@ public class WebServerTests
     public async Task TestWebServerLogsIncomingAndOutgoingData()
     {
         List<string> expectedLog = new()
-        { 
+        {
             "Socket connected",
             "RECV 41 bytes",
             "SEND 223 bytes"
