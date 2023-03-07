@@ -18,6 +18,102 @@ This project is not intended to be a fully-featured, production-ready web server
 not support many of the features of a modern web server.
 
 ## Getting Started
+To use the server, you can instantiate it and call the `Start()` method. You can have the
+server instance return HTML traffic to a browser.
+
+```csharp
+using PinchHitter;
+
+// Start a new server to listen on a random port.
+Server server = new();
+server.Start();
+
+// Register some content to be returned when a URL is browsed.
+server.RegisterResource("/index.html", WebResource.CreateHtmlResource(
+    "<h1>Welcome to the PinchHitter web server</h1><p>You can browse using localhost</p>"));
+
+// Browse to the registered URL, and retrieve the content. You can also
+// use a browser to browse to the same URL, and the content will be
+// rendered there as a standard web page.
+using HttpClient client = new();
+HttpResponseMessage responseMessage = await client.GetAsync($"http://localhost:{server.Port}/index.html");
+string responseContent = await responseMessage.Content.ReadAsStringAsync();
+Console.WriteLine(responseContent);
+
+// Stop the server from listening to incoming requests.
+server.Stop();
+```
+
+The PinchHitter server also supports the WebSocket protocol to allow you to mock activity for testing
+purposes.
+
+```csharp
+using PinchHitter;
+
+// Start a new server to listen on a random port.
+Server server = new();
+server.Start();
+
+// Set up an event handler for when clients connect to
+// this server.
+ManualResetEvent connectionEvent = new(false);
+string connectionId = string.Empty;
+server.ClientConnected += (sender, e) =>
+{
+    connectionId = e.ConnectionId;
+    connectionEvent.Set();
+};
+
+// Connect to the server with a ClientWebSocket instance.
+// The PinchHitter server handles the HTTP-to-WebSocket
+// connection upgrade handshake automatically.
+using ClientWebSocket client = new();
+await client.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
+connectionEvent.WaitOne(TimeSpan.FromSeconds(1));
+
+// Set up an event handler to monitor when the server
+// receives data from an attached client. Note that
+// we can check the connection ID to validate which
+// connected client is sending the data.
+ManualResetEvent serverReceiveSyncEvent = new(false);
+string? dataReceivedFromClient = null;
+this.server.DataReceived += (sender, e) =>
+{
+    if (e.ConnectionId == connectionId)
+    {
+        dataReceivedFromClient = e.Data;
+        serverReceiveSyncEvent.Set();
+    }
+};
+
+// Send the data to the server asynchronously, and wait
+// for the server to have received the data.
+string dataToSend = "Hello from a WebSocket client";
+byte[] sendBuffer = Encoding.UTF8.GetBytes(dataToSend);
+await client.SendAsync(sendBuffer, WebSocketMessageType.Text, true, CancellationToken.None);
+serverReceiveSyncEvent.WaitOne(TimeSpan.FromSeconds(1));
+Console.WriteLine($"Data received from client: {dataReceivedFromClient}");
+
+// The WebSocket connection is full duplex, and data can
+// be sent in either direction. Set up an asynchronous task
+// to receive data from the server.
+ArraySegment<byte> receiveBuffer = WebSocket.CreateClientBuffer(1024, 1024);
+Task<WebSocketReceiveResult> clientReceiveTask = 
+    Task.Run(() => client.ReceiveAsync(receiveBuffer, CancellationToken.None));
+
+// Send data from the server to the client, and wait for
+// the client receive task to complete.
+await server.SendData(connectionId, "Hello back from the PinchHitter server");
+await clientReceiveTask;
+WebSocketReceiveResult result = clientReceiveTask.Result;
+string dataSentToClient = Encoding.UTF8.GetString(receiveBuffer.Array!, 0, result.Count);
+Console.WriteLine($"Data sent to client: {dataSentToClient}");
+
+// Stop the server from listening to WebSocket data.
+server.Stop();
+```
+
+## Development
 The library is built using .NET 6. There are no plans at present to support earlier versions of .NET.
 Future versions of .NET will be supported when [a new LTS version](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core) is released. The next LTS version of .NET is scheduled to be .NET 8, released in November, 2023.
 
@@ -30,7 +126,6 @@ To run the project unit tests, execute the following in a terminal window:
 
     dotnet test
 
-## Development
 There are three projects in this repository:
 * src/PinchHitter/PinchHitter.csproj - The main library source code
 * src/PinchHitter.Client/PinchHitter.Client.csproj - A console application used as a "playground"
