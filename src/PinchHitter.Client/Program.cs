@@ -2,7 +2,7 @@
 
 // See https://aka.ms/new-console-template for more information
 
-WebServer server = new();
+Server server = new();
 
 
 server.RegisterResource("/", new WebResource("/index.html") { IsRedirect = true });
