@@ -4,7 +4,6 @@
 
 Server server = new();
 
-
 server.RegisterResource("/", new WebResource("/index.html") { IsRedirect = true });
 server.RegisterResource("/index.html", WebResource.CreateHtmlResource("<h1>Welcome to the PinchHitter web server</h1><p>You can browse using localhost</p>"));
 

@@ -36,7 +36,8 @@ server.RegisterResource("/index.html", WebResource.CreateHtmlResource(
 // use a browser to browse to the same URL, and the content will be
 // rendered there as a standard web page.
 using HttpClient client = new();
-HttpResponseMessage responseMessage = await client.GetAsync($"http://localhost:{server.Port}/index.html");
+HttpResponseMessage responseMessage = await client.GetAsync(
+    $"http://localhost:{server.Port}/index.html");
 string responseContent = await responseMessage.Content.ReadAsStringAsync();
 Console.WriteLine(responseContent);
 
@@ -48,6 +49,8 @@ The PinchHitter server also supports the WebSocket protocol to allow you to mock
 purposes.
 
 ```csharp
+using System.Net.WebSockets;
+using System.Text;
 using PinchHitter;
 
 // Start a new server to listen on a random port.
@@ -68,7 +71,8 @@ server.ClientConnected += (sender, e) =>
 // The PinchHitter server handles the HTTP-to-WebSocket
 // connection upgrade handshake automatically.
 using ClientWebSocket client = new();
-await client.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
+await client.ConnectAsync(
+    new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
 connectionEvent.WaitOne(TimeSpan.FromSeconds(1));
 
 // Set up an event handler to monitor when the server
@@ -77,7 +81,7 @@ connectionEvent.WaitOne(TimeSpan.FromSeconds(1));
 // connected client is sending the data.
 ManualResetEvent serverReceiveSyncEvent = new(false);
 string? dataReceivedFromClient = null;
-this.server.DataReceived += (sender, e) =>
+server.DataReceived += (sender, e) =>
 {
     if (e.ConnectionId == connectionId)
     {
@@ -90,7 +94,8 @@ this.server.DataReceived += (sender, e) =>
 // for the server to have received the data.
 string dataToSend = "Hello from a WebSocket client";
 byte[] sendBuffer = Encoding.UTF8.GetBytes(dataToSend);
-await client.SendAsync(sendBuffer, WebSocketMessageType.Text, true, CancellationToken.None);
+await client.SendAsync(
+    sendBuffer, WebSocketMessageType.Text, true, CancellationToken.None);
 serverReceiveSyncEvent.WaitOne(TimeSpan.FromSeconds(1));
 Console.WriteLine($"Data received from client: {dataReceivedFromClient}");
 
@@ -106,7 +111,8 @@ Task<WebSocketReceiveResult> clientReceiveTask =
 await server.SendData(connectionId, "Hello back from the PinchHitter server");
 await clientReceiveTask;
 WebSocketReceiveResult result = clientReceiveTask.Result;
-string dataSentToClient = Encoding.UTF8.GetString(receiveBuffer.Array!, 0, result.Count);
+string dataSentToClient =
+    Encoding.UTF8.GetString(receiveBuffer.Array!, 0, result.Count);
 Console.WriteLine($"Data sent to client: {dataSentToClient}");
 
 // Stop the server from listening to WebSocket data.
@@ -159,3 +165,13 @@ of the plugin to add `/p:CollectCoverage=true /p:CoverletOutputFormat=lcov /p:Co
 the test arguments, code coverage data can be collected locally when the tests are executed using the explorer.
 * [Coverage Gutters](https://marketplace.visualstudio.com/items?itemName=ryanluker.vscode-coverage-gutters):
 This plugin allows visualization of code coverage directly within the IDE.
+
+## A Word About the Project Name
+I am a fan of the American sport of [baseball](https://en.wikipedia.org/wiki/Baseball).
+My experience with the game is related to my family, and comes to me from my late grandfather.
+He played the game at a semi-professional level in the 1940s, and he and I bonded over it when
+I was a child. Because of my love for the game, I've taken to naming individual projects I've
+created after various terms in the game. A "pinch hitter" is a player who bats in place of a
+teammate, substituting for them. Similar to association football (known as "soccer" in the
+United States), the replaced player may not return to the game. The name of this project has
+no significance other than it is a term from a sport I enjoy watching and discussing.
