@@ -47,7 +47,7 @@ public class WebResourceTests
     {
         string headContent = "<title>Page Title</title>";
         string bodyContent = "hello world";
-        string expected = $"<html><head>{headContent}</head><body>{bodyContent}</body></html>";
+        string expected = $"<!DOCTYPE html><html><head>{headContent}</head><body>{bodyContent}</body></html>";
         WebResource resource = WebResource.CreateHtmlResource(bodyContent, headContent);
         Assert.That(resource.Data, Is.EquivalentTo(Encoding.UTF8.GetBytes(expected)));
     }

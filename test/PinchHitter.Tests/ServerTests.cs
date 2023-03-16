@@ -419,7 +419,7 @@ public class ServerTests
         {
             "Client connected",
             "RECV 41 bytes",
-            "SEND 223 bytes"
+            "SEND 238 bytes"
         };
         this.server!.RegisterResource("/", WebResource.CreateHtmlResource("hello world"));
         using HttpClient client = new();
