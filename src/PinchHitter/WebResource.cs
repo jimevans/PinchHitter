@@ -64,7 +64,7 @@ public class WebResource
     /// <returns>The WebResource representing the HTML page.</returns>
     public static WebResource CreateHtmlResource(string bodyContent, string headContent = "")
     {
-        return new($"<html><head>{headContent}</head><body>{bodyContent}</body></html>");
+        return new($"<!DOCTYPE html><html><head>{headContent}</head><body>{bodyContent}</body></html>");
     }
 
     /// <summary>
