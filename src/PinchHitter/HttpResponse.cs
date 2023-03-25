@@ -28,6 +28,7 @@ public class HttpResponse
         { HttpStatusCode.MovedPermanently, "Moved Permanently" },
         { HttpStatusCode.BadRequest, "Bad Request" },
         { HttpStatusCode.Unauthorized, "Unauthorized" },
+        { HttpStatusCode.Forbidden, "Forbidden" },
         { HttpStatusCode.NotFound, "Not Found" },
         { HttpStatusCode.InternalServerError, "Internal Server Error" },
     };

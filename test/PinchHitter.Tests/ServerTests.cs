@@ -26,7 +26,7 @@ public class ServerTests
     [Test]
     public async Task TestServerCanProcessHttpRequests()
     {
-        this.server!.RegisterResource("/", WebResource.CreateHtmlResource("hello world"));
+        this.server!.RegisterHandler("/", new WebResourceRequestHandler("hello world"));
         using HttpClient client = new();
         HttpResponseMessage responseMessage = await client.GetAsync($"http://localhost:{server.Port}/");
         string responseContent = await responseMessage.Content.ReadAsStringAsync();
@@ -40,7 +40,7 @@ public class ServerTests
     [Test]
     public async Task TestCanInterceptIncomingHttpRequests()
     {
-        this.server!.RegisterResource("/", WebResource.CreateHtmlResource("hello world"));
+        this.server!.RegisterHandler("/", new WebResourceRequestHandler("hello world"));
 
         string receivedData = string.Empty;
         this.server.DataReceived += (sender, e) =>
@@ -73,7 +73,7 @@ public class ServerTests
             }
         };
 
-        this.server!.RegisterResource("/", WebResource.CreateHtmlResource("hello world"));
+        this.server!.RegisterHandler("/", new WebResourceRequestHandler("hello world"));
         using HttpClient client = new();
         HttpResponseMessage responseMessage = await client.GetAsync($"http://localhost:{server.Port}/");
         connectionEvent.WaitOne(TimeSpan.FromSeconds(1));
@@ -419,9 +419,9 @@ public class ServerTests
         {
             "Client connected",
             "RECV 41 bytes",
-            "SEND 238 bytes"
+            "SEND 184 bytes"
         };
-        this.server!.RegisterResource("/", WebResource.CreateHtmlResource("hello world"));
+        this.server!.RegisterHandler("/", new WebResourceRequestHandler("hello world"));
         using HttpClient client = new();
         HttpResponseMessage responseMessage = await client.GetAsync($"http://localhost:{server.Port}/");
         string responseContent = await responseMessage.Content.ReadAsStringAsync();

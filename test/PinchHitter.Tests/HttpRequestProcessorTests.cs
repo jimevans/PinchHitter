@@ -10,8 +10,8 @@ public class HttpRequestProcessorTests
     public void TestProcessRequest()
     {
         HttpRequestProcessor processor = new();
-        processor.RegisterResource("/", WebResource.CreateHtmlResource("Hello world"));
-        HttpRequest request = HttpRequest.Parse("GET / HTTP/1.1\r\n\r\n");
+        processor.RegisterHandler("/", new WebResourceRequestHandler("Hello world"));
+        _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n", out HttpRequest request);
         HttpResponse response = processor.ProcessRequest(request);
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
@@ -20,7 +20,7 @@ public class HttpRequestProcessorTests
     public void TestProcessNotFoundRequest()
     {
         HttpRequestProcessor processor = new();
-        HttpRequest request = HttpRequest.Parse("GET / HTTP/1.1\r\n\r\n");
+        _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n", out HttpRequest request);
         HttpResponse response = processor.ProcessRequest(request);
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
@@ -29,8 +29,8 @@ public class HttpRequestProcessorTests
     public void TestProcessRedirectRequest()
     {
         HttpRequestProcessor processor = new();
-        processor.RegisterResource("/", new WebResource("/index.html") { IsRedirect = true });
-        HttpRequest request = HttpRequest.Parse("GET / HTTP/1.1\r\n\r\n");
+        processor.RegisterHandler("/", new RedirectRequestHandler("/index.html"));
+        _  = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n", out HttpRequest request);
         HttpResponse response = processor.ProcessRequest(request);
         Assert.Multiple(() =>
         {
@@ -44,11 +44,11 @@ public class HttpRequestProcessorTests
     [Test]
     public void TestProcessRequestNeedingAuthentication()
     {
-        WebResource resource = WebResource.CreateHtmlResource("hello world");
+        AuthenticatedResourceRequestHandler resource = new("hello world");
         resource.AddAuthenticator(new BasicWebAuthenticator("userName", "P@ssw0rd!"));
         HttpRequestProcessor processor = new();
-        processor.RegisterResource("/", resource);
-        HttpRequest request = HttpRequest.Parse("GET / HTTP/1.1\r\n\r\n");
+        processor.RegisterHandler("/", resource);
+        _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n", out HttpRequest request);
         HttpResponse response = processor.ProcessRequest(request);
         Assert.Multiple(() =>
         {
@@ -66,11 +66,11 @@ public class HttpRequestProcessorTests
         string password = "P@ssw0rd!";
         string base64AuthHeaderValue = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{userName}:{password}"));
 
-        WebResource resource = new("hello world");
+        AuthenticatedResourceRequestHandler resource = new("hello world");
         resource.AddAuthenticator(new BasicWebAuthenticator(userName, password));
         HttpRequestProcessor processor = new();
-        processor.RegisterResource("/", resource);
-        HttpRequest request = HttpRequest.Parse("GET / HTTP/1.1\r\n\r\n");
+        processor.RegisterHandler("/", resource);
+        _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n", out HttpRequest request);
         request.Headers["Authorization"] = new List<string>() { $"Basic {base64AuthHeaderValue}" };
         HttpResponse response = processor.ProcessRequest(request);
         Assert.Multiple(() =>
@@ -87,11 +87,11 @@ public class HttpRequestProcessorTests
         string password = "P@ssw0rd!";
         string base64AuthHeaderValue = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{userName}:invalid{password}"));
 
-        WebResource resource = new("hello world");
+        AuthenticatedResourceRequestHandler resource = new("hello world");
         resource.AddAuthenticator(new BasicWebAuthenticator(userName, password));
         HttpRequestProcessor processor = new();
-        processor.RegisterResource("/", resource);
-        HttpRequest request = HttpRequest.Parse("GET / HTTP/1.1\r\n\r\n");
+        processor.RegisterHandler("/", resource);
+        _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n", out HttpRequest request);
         request.Headers["Authorization"] = new List<string>() { $"Basic {base64AuthHeaderValue}" };
         HttpResponse response = processor.ProcessRequest(request);
         Assert.Multiple(() =>
@@ -107,12 +107,26 @@ public class HttpRequestProcessorTests
         string password = "P@ssw0rd!";
         string base64AuthHeaderValue = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{userName}:{password}"));
 
-        WebResource resource = new("hello world");
+        AuthenticatedResourceRequestHandler resource = new("hello world");
         resource.AddAuthenticator(new BasicWebAuthenticator(userName, password));
         HttpRequestProcessor processor = new();
-        processor.RegisterResource("/", resource);
-        HttpRequest request = HttpRequest.Parse("GET / HTTP/1.1\r\n\r\n");
+        processor.RegisterHandler("/", resource);
+        _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n", out HttpRequest request);
         request.Headers["Authorization"] = new List<string>();
+        HttpResponse response = processor.ProcessRequest(request);
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+        });
+    }
+
+    [Test]
+    public void TestProcessMalformedRequestResponse()
+    {
+        WebResourceRequestHandler resource = new("hello world");
+        HttpRequestProcessor processor = new();
+        processor.RegisterHandler("/", resource);
+        _ = HttpRequest.TryParse("GET / HTTP/1.1\r\n\r\n", out HttpRequest request);
         HttpResponse response = processor.ProcessRequest(request);
         Assert.Multiple(() =>
         {
@@ -124,7 +138,7 @@ public class HttpRequestProcessorTests
     public void TestProcessWebSocketUpgradeRequest()
     {
         HttpRequestProcessor processor = new();
-        HttpRequest request = HttpRequest.Parse("GET / HTTP/1.1\r\n\r\n");
+        _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n", out HttpRequest request);
         request.Headers["Connection"] = new List<string>() { "Upgrade" };
         request.Headers["Upgrade"] = new List<string>() { "websocket" };
         request.Headers["Sec-WebSocket-Key"] = new List<string>() { "AWebSocketSecurityKey" };

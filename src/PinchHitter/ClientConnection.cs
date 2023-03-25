@@ -217,7 +217,7 @@ public class ClientConnection
             // the expected response in ProcessHttpRequest.
             string rawRequest = Encoding.UTF8.GetString(buffer, 0, receivedLength);
             this.OnDataReceived(new ClientConnectionDataReceivedEventArgs(this.connectionId, rawRequest));
-            HttpRequest request = HttpRequest.Parse(rawRequest);
+            _ = HttpRequest.TryParse(rawRequest, out HttpRequest request);
             HttpResponse response = this.httpProcessor.ProcessRequest(request);
             if (request.IsWebSocketHandshakeRequest)
             {

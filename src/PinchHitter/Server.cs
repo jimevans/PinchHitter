@@ -145,10 +145,10 @@ public class Server
     /// Registers a resource with this web server to be returned when requested.
     /// </summary>
     /// <param name="url">The relative URL associated with this resource.</param>
-    /// <param name="resource">The web resource to return when requested.</param>
-    public void RegisterResource(string url, WebResource resource)
+    /// <param name="handler">The handler to handle HTTP requests for the given URL.</param>
+    public void RegisterHandler(string url, HttpRequestHandler handler)
     {
-        this.httpProcessor.RegisterResource(url, resource);
+        this.httpProcessor.RegisterHandler(url, handler);
     }
 
     /// <summary>

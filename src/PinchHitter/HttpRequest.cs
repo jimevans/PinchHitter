@@ -14,8 +14,8 @@ using System.Text.RegularExpressions;
 public class HttpRequest
 {
     private readonly Dictionary<string, List<string>> headers = new();
-    private string verb = string.Empty;
-    private string url = string.Empty;
+    private HttpMethod method = HttpMethod.Get;
+    private Uri? uri;
     private string httpVersion = string.Empty;
     private string body = string.Empty;
 
@@ -24,14 +24,14 @@ public class HttpRequest
     }
 
     /// <summary>
-    /// Gets the verb of this HTTP request.
+    /// Gets the method of this HTTP request.
     /// </summary>
-    public string Verb => this.verb;
+    public HttpMethod Method => this.method;
 
     /// <summary>
-    /// Gets the relative URL of this HTTP request.
+    /// Gets the URI of this HTTP request.
     /// </summary>
-    public string Url => this.url;
+    public Uri Uri => this.uri!;
 
     /// <summary>
     /// Gets the HTTP version of this HTTP request.
@@ -65,8 +65,9 @@ public class HttpRequest
     /// Parses an incoming HTTP request.
     /// </summary>
     /// <param name="rawRequest">The string containing the HTTP request.</param>
+    /// <param name="parsedRequest">The parsed HTTP request.</param>
     /// <returns>The parsed HTTP request data.</returns>
-    public static HttpRequest Parse(string rawRequest)
+    public static bool TryParse(string rawRequest, out HttpRequest parsedRequest)
     {
         HttpRequest result = new();
         string[] requestLines = rawRequest.Split("\r\n");
@@ -74,13 +75,16 @@ public class HttpRequest
 
         string navigationLine = requestLines[currentLine];
         Regex navigationRegex = new(@"(.*)\s+(.*)\s+(.*)");
-        if (navigationRegex.IsMatch(navigationLine))
+        if (!navigationRegex.IsMatch(navigationLine))
         {
-            Match match = navigationRegex.Match(navigationLine);
-            result.verb = match.Groups[1].Value;
-            result.url = match.Groups[2].Value;
-            result.httpVersion = match.Groups[3].Value;
+            parsedRequest = result;
+            return false;
         }
+
+        Match match = navigationRegex.Match(navigationLine);
+        string method = match.Groups[1].Value;
+        string relativeUrl = match.Groups[2].Value;
+        result.httpVersion = match.Groups[3].Value;
 
         currentLine++;
 
@@ -100,6 +104,29 @@ public class HttpRequest
             currentLine++;
         }
 
+        string host;
+        if (!result.headers.ContainsKey("Host") || result.headers["Host"].Count != 1)
+        {
+            parsedRequest = result;
+            return false;
+        }
+        else
+        {
+            host = result.headers["Host"][0];
+        }
+
+        if (!Enum.TryParse<HttpMethod>(method, true, out result.method))
+        {
+            parsedRequest = result;
+            return false;
+        }
+
+        if (!Uri.TryCreate($"http://{host}{relativeUrl}", UriKind.Absolute, out result.uri))
+        {
+            parsedRequest = result;
+            return false;
+        }
+
         StringBuilder bodyBuilder = new();
         for (; currentLine < requestLines.Length; currentLine++)
         {
@@ -112,6 +139,7 @@ public class HttpRequest
         }
 
         result.body = bodyBuilder.ToString();
-        return result;
+        parsedRequest = result;
+        return true;
     }
 }
