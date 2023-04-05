@@ -11,9 +11,10 @@ namespace PinchHitter;
 /// </summary>
 public class HttpRequestProcessor
 {
-    private readonly Dictionary<string, HttpRequestHandler> handlers = new();
+    private readonly Dictionary<string, Dictionary<HttpMethod, HttpRequestHandler>> handlers = new();
     private readonly NotFoundRequestHandler notFoundHandler = new(WebContent.AsHtmlDocument("<h1>404 Not Found</h1><div>The requested resource was not found</div>"));
-    private readonly BadRequestHandler invalidRequestHandler = new(WebContent.AsHtmlDocument("<h1>400 Invalid request</h1><div>The authorization request was incorrect</div>"));
+    private readonly BadRequestHandler invalidRequestHandler = new(WebContent.AsHtmlDocument("<h1>400 Invalid Request</h1><div>The authorization request was incorrect</div>"));
+    private readonly MethodNotAllowedRequestHandler methodNotAllowedHandler = new(WebContent.AsHtmlDocument("<h1>405 Method Not Allowed</h1><div>The requested URL does not support the requested method</div>"));
 
     /// <summary>
     /// Process an HTTP request, returning a response.
@@ -41,7 +42,17 @@ public class HttpRequestProcessor
                 }
                 else
                 {
-                    responseData = this.handlers[request.Uri.AbsolutePath].HandleRequest(request);
+                    if (!this.handlers[request.Uri.AbsolutePath].ContainsKey(request.Method))
+                    {
+                        responseData = this.methodNotAllowedHandler.HandleRequest(request);
+                        List<string> validMethods = this.handlers[request.Uri.AbsolutePath].Keys.ToList().ConvertAll((x) => x.ToString().ToUpperInvariant());
+                        validMethods.Sort();
+                        responseData.Headers["Allow"] = new List<string>() { string.Join(", ", validMethods) };
+                    }
+                    else
+                    {
+                        responseData = this.handlers[request.Uri.AbsolutePath][request.Method].HandleRequest(request);
+                    }
                 }
             }
         }
@@ -50,12 +61,28 @@ public class HttpRequestProcessor
     }
 
     /// <summary>
-    /// Registers a request handler with the processor.
+    /// Registers a request handler with the processor for the HTTP GET method.
     /// </summary>
     /// <param name="url">The URL, relative from the root, for which the handler handles requests.</param>
     /// <param name="handler">The handler to register.</param>
     public virtual void RegisterHandler(string url, HttpRequestHandler handler)
     {
-        this.handlers[url] = handler;
+        this.RegisterHandler(url, HttpMethod.Get, handler);
+    }
+
+    /// <summary>
+    /// Registers a request handler with the processor.
+    /// </summary>
+    /// <param name="url">The URL, relative from the root, for which the handler handles requests.</param>
+    /// <param name="method">The HTTP method for which the handler handles requests.</param>
+    /// <param name="handler">The handler to register.</param>
+    public virtual void RegisterHandler(string url, HttpMethod method, HttpRequestHandler handler)
+    {
+        if (!this.handlers.ContainsKey(url))
+        {
+            this.handlers[url] = new Dictionary<HttpMethod, HttpRequestHandler>();
+        }
+
+        this.handlers[url][method] = handler;
     }
 }

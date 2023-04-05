@@ -42,6 +42,23 @@ public class HttpRequestProcessorTests
     }
 
     [Test]
+    public void TestProcessInvalidMethodRequest()
+    {
+        HttpRequestProcessor processor = new();
+        processor.RegisterHandler("/", HttpMethod.Post, new WebResourceRequestHandler("hello"));
+        processor.RegisterHandler("/", HttpMethod.Delete, new WebResourceRequestHandler("world"));
+        _  = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n", out HttpRequest request);
+        HttpResponse response = processor.ProcessRequest(request);
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.MethodNotAllowed));
+            Assert.That(response.Headers, Contains.Key("Allow"));
+            Assert.That(response.Headers["Allow"], Has.Count.EqualTo(1));
+            Assert.That(response.Headers["Allow"][0], Is.EqualTo("DELETE, POST"));
+        });
+    }
+
+    [Test]
     public void TestProcessRequestNeedingAuthentication()
     {
         AuthenticatedResourceRequestHandler resource = new("hello world");
