@@ -39,8 +39,9 @@ public abstract class HttpRequestHandler
     /// Handles an HTTP request.
     /// </summary>
     /// <param name="request">The HTTP request to handle.</param>
+    /// <param name="additionalData">Additional data passed into the method for handling requests.</param>
     /// <returns>The response to the HTTP request.</returns>
-    public abstract HttpResponse HandleRequest(HttpRequest request);
+    public abstract HttpResponse HandleRequest(HttpRequest request, params object[] additionalData);
 
     /// <summary>
     /// Creates an HttpResponse object from this resource.

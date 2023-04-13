@@ -1,7 +1,6 @@
 namespace PinchHitter;
 
 using System.Net;
-using System.Text;
 
 [TestFixture]
 public class NotFoundRequestHandlerTests
@@ -18,5 +17,4 @@ public class NotFoundRequestHandlerTests
             Assert.That(response.BodyContent, Is.EqualTo("Not Found"));
         });
     }
-
 }

@@ -25,9 +25,29 @@ public class MethodNotAllowedRequestHandler : HttpRequestHandler
     /// Process an HTTP request where the requested resource is not found.
     /// </summary>
     /// <param name="request">The HttpRequest object representing the request.</param>
+    /// <param name="additionalData">Additional data passed into the method for handling requests.</param>
     /// <returns>An HttpResponse object representing the response.</returns>
-    public override HttpResponse HandleRequest(HttpRequest request)
+    public override HttpResponse HandleRequest(HttpRequest request, params object[] additionalData)
     {
-        return this.CreateHttpResponse(HttpStatusCode.MethodNotAllowed);
+        if (additionalData.Length == 0)
+        {
+            throw new ArgumentException("Request handler requires list of valid methods.", nameof(additionalData));
+        }
+
+        if (additionalData[0] is not List<HttpMethod> validMethods)
+        {
+            throw new ArgumentException("Additional data must be a list of HttpMethod values.", nameof(additionalData));
+        }
+
+        if (validMethods.Count == 0)
+        {
+            throw new ArgumentException("List of HttpMethod values most contain at least one entry.", nameof(additionalData));
+        }
+
+        List<string> methodStrings = validMethods.ConvertAll((x) => x.ToString().ToUpperInvariant());
+        methodStrings.Sort();
+        HttpResponse responseData = this.CreateHttpResponse(HttpStatusCode.MethodNotAllowed);
+        responseData.Headers["Allow"] = new List<string>() { string.Join(", ", methodStrings) };
+        return responseData;
     }
 }

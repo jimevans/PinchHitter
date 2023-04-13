@@ -44,10 +44,7 @@ public class HttpRequestProcessor
                 {
                     if (!this.handlers[request.Uri.AbsolutePath].ContainsKey(request.Method))
                     {
-                        responseData = this.methodNotAllowedHandler.HandleRequest(request);
-                        List<string> validMethods = this.handlers[request.Uri.AbsolutePath].Keys.ToList().ConvertAll((x) => x.ToString().ToUpperInvariant());
-                        validMethods.Sort();
-                        responseData.Headers["Allow"] = new List<string>() { string.Join(", ", validMethods) };
+                        responseData = this.methodNotAllowedHandler.HandleRequest(request, this.handlers[request.Uri.AbsolutePath].Keys.ToList());
                     }
                     else
                     {

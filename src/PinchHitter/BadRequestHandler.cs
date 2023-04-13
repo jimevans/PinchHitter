@@ -25,8 +25,9 @@ public class BadRequestHandler : HttpRequestHandler
     /// Process an HTTP request where the requested resource is not found.
     /// </summary>
     /// <param name="request">The HttpRequest object representing the request.</param>
+    /// <param name="additionalData">Additional data passed into the method for handling requests.</param>
     /// <returns>An HttpResponse object representing the response.</returns>
-    public override HttpResponse HandleRequest(HttpRequest request)
+    public override HttpResponse HandleRequest(HttpRequest request, params object[] additionalData)
     {
         return this.CreateHttpResponse(HttpStatusCode.BadRequest);
     }
