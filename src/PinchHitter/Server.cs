@@ -152,6 +152,17 @@ public class Server
     }
 
     /// <summary>
+    /// Registers a resource with this web server to be returned when requested.
+    /// </summary>
+    /// <param name="url">The relative URL associated with this resource.</param>
+    /// <param name="method">The HTTP method for which to add the handler.</param>
+    /// <param name="handler">The handler to handle HTTP requests for the given URL.</param>
+    public void RegisterHandler(string url, HttpMethod method, HttpRequestHandler handler)
+    {
+        this.httpProcessor.RegisterHandler(url, method, handler);
+    }
+
+    /// <summary>
     /// Asynchronously sends data to the client connected via this client connection.
     /// </summary>
     /// <param name="connectionId">The ID of the client connection to send data to.</param>

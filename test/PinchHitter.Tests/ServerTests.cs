@@ -429,6 +429,22 @@ public class ServerTests
     }
 
     [Test]
+    public async Task TestServerRespondsToMethodsOtherThanGet()
+    {
+        List<string> expectedLog = new()
+        {
+            "Client connected",
+            "RECV 61 bytes",
+            "SEND 184 bytes"
+        };
+        this.server!.RegisterHandler("/", HttpMethod.Post, new WebResourceRequestHandler("hello world"));
+        using HttpClient client = new();
+        HttpResponseMessage responseMessage = await client.PostAsync($"http://localhost:{server.Port}/", null);
+        string responseContent = await responseMessage.Content.ReadAsStringAsync();
+        Assert.That(this.server.Log, Is.EquivalentTo(expectedLog));
+    }
+
+    [Test]
     public async Task TestServerLogsIncomingAndOutgoingDataForWebSocketTraffic()
     {
         // Expected log includes WebSocket upgrade handshake request.
