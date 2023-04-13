@@ -11,7 +11,7 @@ public class HttpResponseTests
     {
         HttpResponse response = new();
         response.Headers["Custom-Header"] = new List<string>() { "Custom Header Value" };
-        response.BodyContent = Encoding.UTF8.GetBytes("hello world");
+        response.BodyContent = "hello world";
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));

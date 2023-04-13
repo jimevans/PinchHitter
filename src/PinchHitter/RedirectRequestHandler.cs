@@ -19,7 +19,7 @@ public class RedirectRequestHandler : HttpRequestHandler
     /// </summary>
     /// <param name="redirectUrl">The URL, relative to the root, to which to redirect the request.</param>
     public RedirectRequestHandler(string redirectUrl)
-        : base(Array.Empty<byte>())
+        : base(string.Empty)
     {
         this.redirectUrl = redirectUrl;
     }
@@ -34,7 +34,7 @@ public class RedirectRequestHandler : HttpRequestHandler
         HttpResponse responseData = this.CreateHttpResponse(HttpStatusCode.MovedPermanently);
         responseData.Headers["Location"] = new List<string>() { this.redirectUrl };
         responseData.Headers["Content-Length"] = new List<string>() { "0" };
-        responseData.BodyContent = Array.Empty<byte>();
+        responseData.BodyContent = string.Empty;
         return responseData;
     }
 }

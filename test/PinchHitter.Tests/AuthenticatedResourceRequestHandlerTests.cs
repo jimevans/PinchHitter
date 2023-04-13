@@ -21,7 +21,7 @@ public class AuthenticatedResourceRequestHandlerTests
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
-            Assert.That(Encoding.UTF8.GetString(response.BodyContent), Is.EqualTo("content"));
+            Assert.That(response.BodyContent, Is.EqualTo("content"));
         });
     }
 
@@ -52,7 +52,7 @@ public class AuthenticatedResourceRequestHandlerTests
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
-            Assert.That(Encoding.UTF8.GetString(response.BodyContent), Is.EqualTo("content"));
+            Assert.That(response.BodyContent, Is.EqualTo("content"));
         });
     }
 

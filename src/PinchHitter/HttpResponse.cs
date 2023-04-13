@@ -36,7 +36,7 @@ public class HttpResponse
     private readonly Dictionary<string, List<string>> headers = new();
     private string httpVersion = "HTTP/1.1";
     private HttpStatusCode statusCode = HttpStatusCode.OK;
-    private byte[] bodyContent = Array.Empty<byte>();
+    private string bodyContent = string.Empty;
 
     /// <summary>
     /// Gets or sets the status code of the HTTP response.
@@ -72,7 +72,7 @@ public class HttpResponse
     /// <summary>
     /// Gets or sets the body content of this HTTP response as an array of bytes.
     /// </summary>
-    public byte[] BodyContent { get => this.bodyContent; set => this.bodyContent = value; }
+    public string BodyContent { get => this.bodyContent; set => this.bodyContent = value; }
 
     /// <summary>
     /// Converts this HTTP response into an array of bytes suitable for sending across a socket connection.
@@ -93,13 +93,15 @@ public class HttpResponse
         }
 
         responseLines.Add(string.Empty);
-        responseLines.Add(string.Empty);
-        List<byte> buffer = new(Encoding.UTF8.GetBytes(string.Join("\r\n", responseLines.ToArray())));
-        if (this.bodyContent.Length > 0)
+        if (string.IsNullOrEmpty(this.bodyContent))
         {
-            buffer.AddRange(this.bodyContent);
+            responseLines.Add(string.Empty);
+        }
+        else
+        {
+            responseLines.Add(this.bodyContent);
         }
 
-        return buffer.ToArray();
+        return Encoding.UTF8.GetBytes(string.Join("\r\n", responseLines.ToArray()));
     }
 }

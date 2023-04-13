@@ -93,7 +93,7 @@ public class HttpRequestProcessorTests
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
-            Assert.That(Encoding.UTF8.GetString(response.BodyContent), Is.EqualTo("hello world"));
+            Assert.That(response.BodyContent, Is.EqualTo("hello world"));
         });
     }
 

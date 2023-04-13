@@ -15,7 +15,7 @@ public class BadRequestHandlerTests
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
-            Assert.That(Encoding.UTF8.GetString(response.BodyContent), Is.EqualTo("Bad Request"));
+            Assert.That(response.BodyContent, Is.EqualTo("Bad Request"));
         });
     }
 

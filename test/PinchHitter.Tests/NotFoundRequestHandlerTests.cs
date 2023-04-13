@@ -15,7 +15,7 @@ public class NotFoundRequestHandlerTests
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
-            Assert.That(Encoding.UTF8.GetString(response.BodyContent), Is.EqualTo("Not Found"));
+            Assert.That(response.BodyContent, Is.EqualTo("Not Found"));
         });
     }
 
