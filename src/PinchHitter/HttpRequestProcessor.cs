@@ -19,36 +19,37 @@ public class HttpRequestProcessor
     /// <summary>
     /// Process an HTTP request, returning a response.
     /// </summary>
+    /// <param name="connectionId">The ID of the connection from which the received request is to be processed.</param>
     /// <param name="request">The HttpRequest object representing the request.</param>
     /// <returns>An HttpResponse object representing the response.</returns>
-    public virtual HttpResponse ProcessRequest(HttpRequest request)
+    public virtual HttpResponse ProcessRequest(string connectionId, HttpRequest request)
     {
         HttpResponse responseData;
         if (request.Uri is null)
         {
-            responseData = this.invalidRequestHandler.HandleRequest(request);
+            responseData = this.invalidRequestHandler.HandleRequest(connectionId, request);
         }
         else
         {
             if (request.IsWebSocketHandshakeRequest)
             {
-                responseData = new WebSocketHandshakeRequestHandler().HandleRequest(request);
+                responseData = new WebSocketHandshakeRequestHandler().HandleRequest(connectionId, request);
             }
             else
             {
                 if (!this.handlers.ContainsKey(request.Uri.AbsolutePath))
                 {
-                    responseData = this.notFoundHandler.HandleRequest(request);
+                    responseData = this.notFoundHandler.HandleRequest(connectionId, request);
                 }
                 else
                 {
                     if (!this.handlers[request.Uri.AbsolutePath].ContainsKey(request.Method))
                     {
-                        responseData = this.methodNotAllowedHandler.HandleRequest(request, this.handlers[request.Uri.AbsolutePath].Keys.ToList());
+                        responseData = this.methodNotAllowedHandler.HandleRequest(connectionId, request, this.handlers[request.Uri.AbsolutePath].Keys.ToList());
                     }
                     else
                     {
-                        responseData = this.handlers[request.Uri.AbsolutePath][request.Method].HandleRequest(request);
+                        responseData = this.handlers[request.Uri.AbsolutePath][request.Method].HandleRequest(connectionId, request);
                     }
                 }
             }

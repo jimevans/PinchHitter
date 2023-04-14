@@ -13,6 +13,7 @@ using System.Text.RegularExpressions;
 /// </summary>
 public class HttpRequest
 {
+    private readonly string requestId = Guid.NewGuid().ToString();
     private readonly Dictionary<string, List<string>> headers = new();
     private HttpMethod method = HttpMethod.Get;
     private Uri? uri;
@@ -22,6 +23,11 @@ public class HttpRequest
     private HttpRequest()
     {
     }
+
+    /// <summary>
+    /// Gets the unique identifier of this HTTP request.
+    /// </summary>
+    public string Id => this.requestId;
 
     /// <summary>
     /// Gets the method of this HTTP request.

@@ -26,6 +26,16 @@ public abstract class HttpRequestHandler
     }
 
     /// <summary>
+    /// Occurs before the handler handles the HTTP request.
+    /// </summary>
+    public event EventHandler<RequestHandlingEventArgs>? RequestHandling;
+
+    /// <summary>
+    /// Occurs after the handler handles the HTTP request, but before the response is sent to the requester.
+    /// </summary>
+    public event EventHandler<RequestHandledEventArgs>? RequestHandled;
+
+    /// <summary>
     /// Gets the data for this resource as an array of bytes.
     /// </summary>
     public string Data => this.data;
@@ -38,19 +48,61 @@ public abstract class HttpRequestHandler
     /// <summary>
     /// Handles an HTTP request.
     /// </summary>
+    /// <param name="connectionId">The connection from which the HTTP request to be handled was received.</param>
     /// <param name="request">The HTTP request to handle.</param>
     /// <param name="additionalData">Additional data passed into the method for handling requests.</param>
     /// <returns>The response to the HTTP request.</returns>
-    public abstract HttpResponse HandleRequest(HttpRequest request, params object[] additionalData);
+    public HttpResponse HandleRequest(string connectionId, HttpRequest request, params object[] additionalData)
+    {
+        this.OnRequestHandling(connectionId, request);
+        HttpResponse response = this.ProcessRequest(request, additionalData);
+        this.OnRequestHandled(connectionId, response);
+        return response;
+    }
+
+    /// <summary>
+    /// Processes an HTTP request.
+    /// </summary>
+    /// <param name="request">The HTTP request to handle.</param>
+    /// <param name="additionalData">Additional data passed into the method for handling requests.</param>
+    /// <returns>The response to the HTTP request.</returns>
+    protected abstract HttpResponse ProcessRequest(HttpRequest request, params object[] additionalData);
+
+    /// <summary>
+    /// Raises the RequestHandling event.
+    /// </summary>
+    /// <param name="connectionId">The ID of the connection from which the request was received.</param>
+    /// <param name="request">The request being handled.</param>
+    protected virtual void OnRequestHandling(string connectionId, HttpRequest request)
+    {
+        if (this.RequestHandling is not null)
+        {
+            this.RequestHandling(this, new RequestHandlingEventArgs(connectionId, request));
+        }
+    }
+
+    /// <summary>
+    /// Raises the RequestHandled event.
+    /// </summary>
+    /// <param name="connectionId">The ID of the connection to which the response will be sent.</param>
+    /// <param name="response">The response of the handled request.</param>
+    protected virtual void OnRequestHandled(string connectionId, HttpResponse response)
+    {
+        if (this.RequestHandled is not null)
+        {
+            this.RequestHandled(this, new RequestHandledEventArgs(connectionId, response));
+        }
+    }
 
     /// <summary>
     /// Creates an HttpResponse object from this resource.
     /// </summary>
+    /// <param name="requestId">The ID of the request to which the response applies.</param>
     /// <param name="statusCode">The HTTP status code of the response.</param>
     /// <returns>The HTTP response to be transmitted.</returns>
-    protected HttpResponse CreateHttpResponse(HttpStatusCode statusCode)
+    protected HttpResponse CreateHttpResponse(string requestId, HttpStatusCode statusCode)
     {
-        HttpResponse response = new()
+        HttpResponse response = new(requestId)
         {
             StatusCode = statusCode,
         };

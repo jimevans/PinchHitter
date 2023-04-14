@@ -39,12 +39,12 @@ public class AuthenticatedResourceRequestHandler : WebResourceRequestHandler
     /// <param name="request">The HTTP request to handle.</param>
     /// <param name="additionalData">Additional data passed into the method for handling requests.</param>
     /// <returns>The response to the HTTP request.</returns>
-    public override HttpResponse HandleRequest(HttpRequest request, params object[] additionalData)
+    protected override HttpResponse ProcessRequest(HttpRequest request, params object[] additionalData)
     {
         HttpResponse responseData;
         if (!request.Headers.ContainsKey("Authorization"))
         {
-            responseData = new HttpResponse()
+            responseData = new HttpResponse(request.Id)
             {
                 StatusCode = HttpStatusCode.Unauthorized,
             };
@@ -56,7 +56,7 @@ public class AuthenticatedResourceRequestHandler : WebResourceRequestHandler
         {
             if (request.Headers["Authorization"].Count == 0)
             {
-                responseData = new HttpResponse()
+                responseData = new HttpResponse(request.Id)
                 {
                     StatusCode = HttpStatusCode.BadRequest,
                 };
@@ -68,7 +68,7 @@ public class AuthenticatedResourceRequestHandler : WebResourceRequestHandler
                 string authorizationHeader = request.Headers["Authorization"][0];
                 if (!this.TryAuthenticate(authorizationHeader))
                 {
-                    responseData = new HttpResponse()
+                    responseData = new HttpResponse(request.Id)
                     {
                         StatusCode = HttpStatusCode.Forbidden,
                     };
@@ -77,7 +77,7 @@ public class AuthenticatedResourceRequestHandler : WebResourceRequestHandler
                 }
                 else
                 {
-                    responseData = base.HandleRequest(request);
+                    responseData = base.ProcessRequest(request);
                 }
             }
         }

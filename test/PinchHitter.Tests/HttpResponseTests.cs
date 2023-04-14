@@ -9,7 +9,7 @@ public class HttpResponseTests
     [Test]
     public void TestCanCreateResponse()
     {
-        HttpResponse response = new();
+        HttpResponse response = new("requestId");
         response.Headers["Custom-Header"] = new List<string>() { "Custom Header Value" };
         response.BodyContent = "hello world";
         Assert.Multiple(() =>
@@ -27,7 +27,7 @@ public class HttpResponseTests
     [Test]
     public void TestResponseWithUnsupportedStatusCode()
     {
-        HttpResponse response = new()
+        HttpResponse response = new("requestId")
         {
             StatusCode = HttpStatusCode.Unused
         };

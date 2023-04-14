@@ -17,7 +17,7 @@ public class AuthenticatedResourceRequestHandlerTests
 
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent:Test User Agent\r\n\r\n", out HttpRequest request);
         request.Headers.Add("Authorization", new List<string>() { $"Basic {authorizationHeaderValue}" });
-        HttpResponse response = handler.HandleRequest(request);
+        HttpResponse response = handler.HandleRequest("connectionId", request);
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
@@ -35,7 +35,7 @@ public class AuthenticatedResourceRequestHandlerTests
 
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent:Test User Agent\r\n\r\n", out HttpRequest request);
         request.Headers.Add("Authorization", new List<string>() { $"Basic NotAValidHeaderValue" });
-        HttpResponse response = handler.HandleRequest(request);
+        HttpResponse response = handler.HandleRequest("connectionId", request);
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
@@ -48,7 +48,7 @@ public class AuthenticatedResourceRequestHandlerTests
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent:Test User Agent\r\n\r\n", out HttpRequest request);
         request.Headers.Add("Authorization", new List<string>() { "Basic aninvalidvaluebutusableforthistest" });
         AuthenticatedResourceRequestHandler handler = new("content");
-        HttpResponse response = handler.HandleRequest(request);
+        HttpResponse response = handler.HandleRequest("connectionId", request);
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
@@ -62,7 +62,7 @@ public class AuthenticatedResourceRequestHandlerTests
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent:Test User Agent\r\n\r\n", out HttpRequest request);
         request.Headers.Add("Authorization", new List<string>());
         AuthenticatedResourceRequestHandler handler = new("content");
-        HttpResponse response = handler.HandleRequest(request);
+        HttpResponse response = handler.HandleRequest("connectionId", request);
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
@@ -74,7 +74,7 @@ public class AuthenticatedResourceRequestHandlerTests
     {
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent:Test User Agent\r\n\r\n", out HttpRequest request);
         AuthenticatedResourceRequestHandler handler = new("content");
-        HttpResponse response = handler.HandleRequest(request);
+        HttpResponse response = handler.HandleRequest("connectionId", request);
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));

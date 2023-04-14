@@ -32,7 +32,7 @@ public class WebSocketHandshakeRequestHandler : HttpRequestHandler
     /// <param name="request">The HTTP request to handle.</param>
     /// <param name="additionalData">Additional data passed into the method for handling requests.</param>
     /// <returns>The response to the HTTP request.</returns>
-    public override HttpResponse HandleRequest(HttpRequest request, params object[] additionalData)
+    protected override HttpResponse ProcessRequest(HttpRequest request, params object[] additionalData)
     {
         string websocketSecureKey = request.Headers["Sec-WebSocket-Key"][0];
 
@@ -44,7 +44,7 @@ public class WebSocketHandshakeRequestHandler : HttpRequestHandler
         byte[] websocketResponseHash = SHA1.Create().ComputeHash(websocketSecureResponseBytes);
         string websocketAcceptResponseHash = Convert.ToBase64String(websocketResponseHash);
 
-        HttpResponse response = this.CreateHttpResponse(HttpStatusCode.SwitchingProtocols);
+        HttpResponse response = this.CreateHttpResponse(request.Id, HttpStatusCode.SwitchingProtocols);
         response.Headers["Connection"] = new List<string>() { "Upgrade" };
         response.Headers["Upgrade"] = new List<string>() { "websocket" };
         response.Headers["Sec-WebSocket-Accept"] = new List<string>() { websocketAcceptResponseHash };

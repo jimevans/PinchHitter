@@ -27,8 +27,8 @@ public class BadRequestHandler : HttpRequestHandler
     /// <param name="request">The HttpRequest object representing the request.</param>
     /// <param name="additionalData">Additional data passed into the method for handling requests.</param>
     /// <returns>An HttpResponse object representing the response.</returns>
-    public override HttpResponse HandleRequest(HttpRequest request, params object[] additionalData)
+    protected override HttpResponse ProcessRequest(HttpRequest request, params object[] additionalData)
     {
-        return this.CreateHttpResponse(HttpStatusCode.BadRequest);
+        return this.CreateHttpResponse(request.Id, HttpStatusCode.BadRequest);
     }
 }

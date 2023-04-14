@@ -11,7 +11,7 @@ public class WebResourceRequestHandlerTests
     {
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent:Test User Agent\r\n\r\n", out HttpRequest request);
         WebResourceRequestHandler handler = new("content");
-        HttpResponse response = handler.HandleRequest(request);
+        HttpResponse response = handler.HandleRequest("connectionId", request);
         Assert.Multiple(() =>
         {
             Assert.That(handler.Data, Is.EqualTo(Encoding.UTF8.GetBytes("content")));

@@ -13,14 +13,6 @@ using System.Text;
 /// </summary>
 public class HttpResponse
 {
-    /// <summary>
-    /// Represents an invalid response.
-    /// </summary>
-    public static readonly HttpResponse InvalidResponse = new()
-    {
-        StatusCode = HttpStatusCode.InternalServerError,
-    };
-
     private static readonly Dictionary<HttpStatusCode, string> ReasonPhrases = new()
     {
         { HttpStatusCode.SwitchingProtocols, "Switching Protocols" },
@@ -33,10 +25,25 @@ public class HttpResponse
         { HttpStatusCode.InternalServerError, "Internal Server Error" },
     };
 
+    private readonly string requestId;
     private readonly Dictionary<string, List<string>> headers = new();
     private string httpVersion = "HTTP/1.1";
     private HttpStatusCode statusCode = HttpStatusCode.OK;
     private string bodyContent = string.Empty;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="HttpResponse"/> class.
+    /// </summary>
+    /// <param name="requestId">The ID of the HTTP request for which this HTTP response is intended.</param>
+    public HttpResponse(string requestId)
+    {
+        this.requestId = requestId;
+    }
+
+    /// <summary>
+    /// Gets the ID of the HTTP request for which this HTTP response is intended.
+    /// </summary>
+    public string RequestId => this.requestId;
 
     /// <summary>
     /// Gets or sets the status code of the HTTP response.

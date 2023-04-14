@@ -10,7 +10,7 @@ public class MethodNotAllowedRequestHandlerTests
     {
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent:Test User Agent\r\n\r\n", out HttpRequest request);
         MethodNotAllowedRequestHandler handler = new("Method Not Allowed");
-        HttpResponse response = handler.HandleRequest(request, new List<HttpMethod>() { HttpMethod.Post, HttpMethod.Delete });
+        HttpResponse response = handler.HandleRequest("connectionId", request, new List<HttpMethod>() { HttpMethod.Post, HttpMethod.Delete });
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.MethodNotAllowed));
@@ -26,7 +26,7 @@ public class MethodNotAllowedRequestHandlerTests
     {
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent:Test User Agent\r\n\r\n", out HttpRequest request);
         MethodNotAllowedRequestHandler handler = new("Method Not Allowed");
-        Assert.That(() => handler.HandleRequest(request), Throws.InstanceOf<ArgumentException>().With.Message.Contains("Request handler requires list of valid methods."));
+        Assert.That(() => handler.HandleRequest("connectionId", request), Throws.InstanceOf<ArgumentException>().With.Message.Contains("Request handler requires list of valid methods."));
     }
 
     [Test]
@@ -34,7 +34,7 @@ public class MethodNotAllowedRequestHandlerTests
     {
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent:Test User Agent\r\n\r\n", out HttpRequest request);
         MethodNotAllowedRequestHandler handler = new("Method Not Allowed");
-        Assert.That(() => handler.HandleRequest(request, "foo"), Throws.InstanceOf<ArgumentException>().With.Message.Contains("Additional data must be a list of HttpMethod values."));
+        Assert.That(() => handler.HandleRequest("connectionId", request, "foo"), Throws.InstanceOf<ArgumentException>().With.Message.Contains("Additional data must be a list of HttpMethod values."));
     }
 
     [Test]
@@ -42,6 +42,6 @@ public class MethodNotAllowedRequestHandlerTests
     {
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent:Test User Agent\r\n\r\n", out HttpRequest request);
         MethodNotAllowedRequestHandler handler = new("Method Not Allowed");
-        Assert.That(() => handler.HandleRequest(request, new List<HttpMethod>()), Throws.InstanceOf<ArgumentException>().With.Message.Contains("List of HttpMethod values most contain at least one entry."));
+        Assert.That(() => handler.HandleRequest("connectionId", request, new List<HttpMethod>()), Throws.InstanceOf<ArgumentException>().With.Message.Contains("List of HttpMethod values most contain at least one entry."));
     }
 }

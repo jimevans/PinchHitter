@@ -30,9 +30,9 @@ public class RedirectRequestHandler : HttpRequestHandler
     /// <param name="request">The HTTP request to handle.</param>
     /// <param name="additionalData">Additional data passed into the method for handling requests.</param>
     /// <returns>The response to the HTTP request.</returns>
-    public override HttpResponse HandleRequest(HttpRequest request, params object[] additionalData)
+    protected override HttpResponse ProcessRequest(HttpRequest request, params object[] additionalData)
     {
-        HttpResponse responseData = this.CreateHttpResponse(HttpStatusCode.MovedPermanently);
+        HttpResponse responseData = this.CreateHttpResponse(request.Id, HttpStatusCode.MovedPermanently);
         responseData.Headers["Location"] = new List<string>() { this.redirectUrl };
         responseData.Headers["Content-Length"] = new List<string>() { "0" };
         responseData.BodyContent = string.Empty;
