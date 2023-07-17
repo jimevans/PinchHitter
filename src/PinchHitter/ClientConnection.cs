@@ -84,7 +84,7 @@ public class ClientConnection
     }
 
     /// <summary>
-    /// Asynchrounously forcibly disconnects the server without following the appropriate shutdown procedure.
+    /// Asynchronously forcibly disconnects the server without following the appropriate shutdown procedure.
     /// </summary>
     /// <returns>The task object representing the asynchronous operation.</returns>
     public async Task Disconnect()
@@ -102,7 +102,7 @@ public class ClientConnection
     }
 
     /// <summary>
-    /// Asynchronously sends data to the client requesing data from this server.
+    /// Asynchronously sends data to the client requesting data from this server.
     /// </summary>
     /// <param name="data">A byte array representing the data to be sent.</param>
     /// <returns>The task object representing the asynchronous operation.</returns>

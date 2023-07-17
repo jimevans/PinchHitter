@@ -18,7 +18,7 @@ public class Server
 {
     private readonly ConcurrentDictionary<string, ClientConnection> activeConnections = new();
     private readonly TcpListener listener;
-    private readonly CancellationTokenSource listenerCancelationTokenSource = new();
+    private readonly CancellationTokenSource listenerCancellationTokenSource = new();
     private readonly List<string> serverLog = new();
     private readonly HttpRequestProcessor httpProcessor = new();
     private int port = 0;
@@ -107,7 +107,7 @@ public class Server
     }
 
     /// <summary>
-    /// Stops the server from listening for incomeing connections.
+    /// Stops the server from listening for incoming connections.
     /// </summary>
     public void Stop()
     {
@@ -121,13 +121,13 @@ public class Server
                 pair.Value.StopReceiving();
             }
 
-            this.listenerCancelationTokenSource.Cancel();
+            this.listenerCancellationTokenSource.Cancel();
             this.listener.Stop();
         }
     }
 
     /// <summary>
-    /// Asynchrounously forcibly disconnects the server without following the appropriate shutdown procedure.
+    /// Asynchronously forcibly disconnects the server without following the appropriate shutdown procedure.
     /// </summary>
     /// <param name="connectionId">The ID of the client connection to disconnect.</param>
     /// <returns>The task object representing the asynchronous operation.</returns>
@@ -135,7 +135,7 @@ public class Server
     {
         if (!this.activeConnections.TryGetValue(connectionId, out ClientConnection? connection))
         {
-            throw new PinchHitterException($"Unknown connecxtion ID {connectionId}");
+            throw new PinchHitterException($"Unknown connection ID {connectionId}");
         }
 
         await connection.Disconnect();
@@ -186,14 +186,14 @@ public class Server
     {
         if (!this.activeConnections.TryGetValue(connectionId, out ClientConnection? connection))
         {
-            throw new PinchHitterException($"Unknown connecxtion ID {connectionId}");
+            throw new PinchHitterException($"Unknown connection ID {connectionId}");
         }
 
         connection.IgnoreCloseRequest = ignoreCloseConnectionRequest;
     }
 
     /// <summary>
-    /// Asynchronously sends data to the client requesing data from this server.
+    /// Asynchronously sends data to the client requesting data from this server.
     /// </summary>
     /// <param name="connectionId">The ID of the client connection to send data to.</param>
     /// <param name="data">A byte array representing the data to be sent.</param>
@@ -203,7 +203,7 @@ public class Server
     {
         if (!this.activeConnections.TryGetValue(connectionId, out ClientConnection? connection))
         {
-            throw new PinchHitterException($"Unknown connecxtion ID {connectionId}");
+            throw new PinchHitterException($"Unknown connection ID {connectionId}");
         }
 
         await connection.SendData(data);
@@ -259,7 +259,7 @@ public class Server
         this.isAcceptingConnections = true;
         while (true)
         {
-            Socket socket = await this.listener.AcceptSocketAsync(this.listenerCancelationTokenSource.Token);
+            Socket socket = await this.listener.AcceptSocketAsync(this.listenerCancellationTokenSource.Token);
             if (this.isAcceptingConnections)
             {
                 ClientConnection clientConnection = new(socket, this.httpProcessor, this.bufferSize);
@@ -293,7 +293,7 @@ public class Server
 
     private void OnClientConnectionStopped(string connectionId)
     {
-        this.activeConnections.TryRemove(connectionId, out ClientConnection _);
+        this.activeConnections.TryRemove(connectionId, out ClientConnection? _);
         this.OnClientDisconnected(new ClientConnectionEventArgs(connectionId));
     }
 }

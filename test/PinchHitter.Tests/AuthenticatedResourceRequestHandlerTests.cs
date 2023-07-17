@@ -46,6 +46,8 @@ public class AuthenticatedResourceRequestHandlerTests
     public void TestHandlerWithoutAuthenticatorsReturnsContent()
     {
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent:Test User Agent\r\n\r\n", out HttpRequest request);
+        // Disable spell checker for bogus value.
+        // cspell: disable-next
         request.Headers.Add("Authorization", new List<string>() { "Basic aninvalidvaluebutusableforthistest" });
         AuthenticatedResourceRequestHandler handler = new("content");
         HttpResponse response = handler.HandleRequest("connectionId", request);

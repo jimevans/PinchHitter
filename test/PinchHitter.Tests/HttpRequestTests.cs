@@ -94,7 +94,7 @@ public class HttpRequestTests
     }
 
     [Test]
-    public void TestInvaliUrlFailsToParse()
+    public void TestInvalidUrlFailsToParse()
     {
         bool parsed = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: \r\n\r\nHello world\r\nAnd good day", out HttpRequest _);
         Assert.That(parsed, Is.False);
