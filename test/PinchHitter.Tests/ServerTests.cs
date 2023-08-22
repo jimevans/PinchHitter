@@ -481,7 +481,8 @@ public class ServerTests
         Task<WebSocketReceiveResult> receiveTask = Task.Run(() => socket.ReceiveAsync(buffer, CancellationToken.None));
 
         await socket.SendAsync(Encoding.UTF8.GetBytes("Received from client"), WebSocketMessageType.Text, true, CancellationToken.None);
-        bool eventReceived = syncEvent.WaitOne(TimeSpan.FromSeconds(1));
+        bool eventReceived = syncEvent.WaitOne(TimeSpan.FromSeconds(3));
+        Assert.That(eventReceived, Is.True);
         await server.SendData(connectionId, "Sent to client");
         await receiveTask;
         WebSocketReceiveResult result = receiveTask.Result;
