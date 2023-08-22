@@ -76,7 +76,7 @@ public class HttpRequest
     public static bool TryParse(string rawRequest, out HttpRequest parsedRequest)
     {
         HttpRequest result = new();
-        string[] requestLines = rawRequest.Split("\r\n");
+        string[] requestLines = rawRequest.Split(new string[] { "\r\n" }, StringSplitOptions.None);
         int currentLine = 0;
 
         string navigationLine = requestLines[currentLine];
@@ -97,7 +97,7 @@ public class HttpRequest
         while (requestLines[currentLine].Length > 0)
         {
             string rawHeader = requestLines[currentLine];
-            string[] readerInfo = rawHeader.Split(":", 2, StringSplitOptions.None);
+            string[] readerInfo = rawHeader.Split(new string[] { ":" }, 2, StringSplitOptions.None);
             string headerName = readerInfo[0].Trim();
             string headerValue = readerInfo[1].Trim();
             if (result.headers.ContainsKey(headerName))

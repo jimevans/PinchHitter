@@ -94,7 +94,7 @@ public class WebSocketFrame
         long offset = Convert.ToInt64(keyOffset + key.Count);
         for (long index = 0; index < messageLength; index++)
         {
-            decoded[index] = Convert.ToByte(buffer[offset + index] ^ key[Convert.ToInt32(index % 4)]);
+            decoded[index] = Convert.ToByte(buffer[offset + index] ^ key.Array![Convert.ToInt32(key.Offset + (index % 4))]);
         }
 
         return new WebSocketFrame(opcode, decoded);

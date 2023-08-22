@@ -109,7 +109,10 @@ public class ClientConnection
     /// <exception cref="PinchHitterException">Thrown when there is no client socket connected.</exception>
     public async Task SendData(byte[] data)
     {
-        int bytesSent = await this.clientSocket.SendAsync(data, SocketFlags.None);
+        // In .NETStandard 2.1, we could simply call Socket.SendAsync,
+        // which is awaitable already. For .NETStandard 2.0, we will use
+        // a synchronous call, but schedule it as a task to make it awaitable.
+        int bytesSent = await Task.Run(() => this.clientSocket.Send(data, SocketFlags.None));
         this.OnLogMessage(new ClientConnectionLogMessageEventArgs($"SEND {bytesSent} bytes"));
     }
 
@@ -168,32 +171,16 @@ public class ClientConnection
         {
             while (this.state != WebSocketState.Closed)
             {
-                byte[] buffer = new byte[this.bufferSize];
-                using NetworkStream networkStream = new(this.clientSocket);
-                using MemoryStream memoryStream = new();
-                do
-                {
-                    // Use a NetworkStream to read the data from the socket, then write
-                    // the received data to a MemoryStream. This allows the server to
-                    // read requests that exceed the size of the buffer.
-                    int receivedLength = await networkStream.ReadAsync(buffer, this.cancellationTokenSource.Token);
-                    await memoryStream.WriteAsync(buffer.AsMemory(0, receivedLength), this.cancellationTokenSource.Token);
-                }
-                while (networkStream.DataAvailable);
-
-                if (memoryStream.Length > 0)
-                {
-                    // Reset the memory stream position, and copy the data into a buffer
-                    // suitable for processing.
-                    int totalReceived = Convert.ToInt32(memoryStream.Length);
-                    memoryStream.Position = 0;
-                    byte[] messageBytes = new byte[totalReceived];
-                    await memoryStream.ReadAsync(messageBytes.AsMemory(0, totalReceived), this.cancellationTokenSource.Token);
-                    await this.ProcessIncomingData(messageBytes, totalReceived);
-                }
+                // In .NETStandard 2.1, we could use a NetworkStream to wrap the
+                // socket and call ReadAsync(), which is awaitable to read the
+                // incoming data. For .NETStandard 2.0, we must use the original
+                // ReceiveAsync method on the socket directly, which is not
+                // awaitable, but we will wrap that usage in a Task to make it so.
+                byte[] receivedData = await Task.Run(() => this.ReceiveDataInternal());
+                await this.ProcessIncomingData(receivedData, receivedData.Length);
             }
         }
-        finally
+       finally
         {
             this.clientSocket.Close();
             this.OnStopped(new ClientConnectionEventArgs(this.connectionId));
@@ -262,5 +249,34 @@ public class ClientConnection
     {
         WebSocketFrame closeFrame = WebSocketFrame.Encode(message, WebSocketOpcodeType.ClosedConnection);
         await this.SendData(closeFrame.Data);
+    }
+
+    private byte[] ReceiveDataInternal()
+    {
+        byte[] buffer = new byte[this.bufferSize];
+        SocketAsyncEventArgs socketAsyncEventArgs = new();
+        socketAsyncEventArgs.SetBuffer(buffer, 0, buffer.Length);
+        socketAsyncEventArgs.SocketFlags = SocketFlags.None;
+
+        ManualResetEventSlim completedEvent = new(false);
+        socketAsyncEventArgs.Completed += (sender, e) =>
+        {
+            completedEvent.Set();
+        };
+
+        List<byte> receivedBytes = new();
+        do
+        {
+            completedEvent.Reset();
+            bool operationIsPending = this.clientSocket.ReceiveAsync(socketAsyncEventArgs);
+            if (operationIsPending)
+            {
+                completedEvent.Wait(this.cancellationTokenSource.Token);
+            }
+
+            receivedBytes.AddRange(new ArraySegment<byte>(socketAsyncEventArgs.Buffer!, 0, socketAsyncEventArgs.BytesTransferred));
+        }
+        while (this.clientSocket.Available > 0);
+        return receivedBytes.ToArray();
     }
 }
