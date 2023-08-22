@@ -101,6 +101,7 @@ public class Server
             this.port = localEndpoint.Port;
         }
 
+        this.isAcceptingConnections = true;
         _ = Task.Run(() => this.AcceptConnections()).ConfigureAwait(false);
     }
 
@@ -254,7 +255,6 @@ public class Server
 
     private async Task AcceptConnections()
     {
-        this.isAcceptingConnections = true;
         while (true)
         {
             Socket socket = await this.listener.AcceptSocketAsync();
