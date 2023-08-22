@@ -218,11 +218,13 @@ public class ServerTests
         };
 
         await socket1.SendAsync(Encoding.UTF8.GetBytes("Sent from client 1"), WebSocketMessageType.Text, true, CancellationToken.None);
-        receivedDataEvent.Wait(TimeSpan.FromSeconds(1));
+        bool isDataReceivedEventSet = receivedDataEvent.Wait(TimeSpan.FromSeconds(2));
+        Assert.That(isDataReceivedEventSet, Is.True);
 
         receivedDataEvent.Reset();
         await socket2.SendAsync(Encoding.UTF8.GetBytes("Sent from client 2"), WebSocketMessageType.Text, true, CancellationToken.None);
-        receivedDataEvent.Wait(TimeSpan.FromSeconds(1));
+        isDataReceivedEventSet = receivedDataEvent.Wait(TimeSpan.FromSeconds(2));
+        Assert.That(isDataReceivedEventSet, Is.True);
         Assert.That(receivedData, Is.EquivalentTo(new List<string>() { $"{connectionId1}: Sent from client 1", $"{connectionId2}: Sent from client 2" }));
     }
 
