@@ -18,7 +18,6 @@ public class Server
 {
     private readonly ConcurrentDictionary<string, ClientConnection> activeConnections = new();
     private readonly TcpListener listener;
-    private readonly CancellationTokenSource listenerCancellationTokenSource = new();
     private readonly List<string> serverLog = new();
     private readonly HttpRequestProcessor httpProcessor = new();
     private int port = 0;
@@ -103,7 +102,6 @@ public class Server
         }
 
         _ = Task.Run(() => this.AcceptConnections()).ConfigureAwait(false);
-        this.isAcceptingConnections = true;
     }
 
     /// <summary>
@@ -121,7 +119,7 @@ public class Server
                 pair.Value.StopReceiving();
             }
 
-            this.listenerCancellationTokenSource.Cancel();
+            this.activeConnections.Clear();
             this.listener.Stop();
         }
     }
@@ -259,7 +257,7 @@ public class Server
         this.isAcceptingConnections = true;
         while (true)
         {
-            Socket socket = await this.listener.AcceptSocketAsync(this.listenerCancellationTokenSource.Token);
+            Socket socket = await this.listener.AcceptSocketAsync();
             if (this.isAcceptingConnections)
             {
                 ClientConnection clientConnection = new(socket, this.httpProcessor, this.bufferSize);
