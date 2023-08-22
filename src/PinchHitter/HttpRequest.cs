@@ -97,14 +97,16 @@ public class HttpRequest
         while (requestLines[currentLine].Length > 0)
         {
             string rawHeader = requestLines[currentLine];
-            string[] readerInfo = rawHeader.Split(":", 2, StringSplitOptions.TrimEntries);
-            if (result.headers.ContainsKey(readerInfo[0]))
+            string[] readerInfo = rawHeader.Split(":", 2, StringSplitOptions.None);
+            string headerName = readerInfo[0].Trim();
+            string headerValue = readerInfo[1].Trim();
+            if (result.headers.ContainsKey(headerName))
             {
-                result.headers[readerInfo[0]].Add(readerInfo[1]);
+                result.headers[headerName].Add(headerValue);
             }
             else
             {
-                result.headers[readerInfo[0]] = new() { readerInfo[1] };
+                result.headers[headerName] = new() { headerValue };
             }
 
             currentLine++;
