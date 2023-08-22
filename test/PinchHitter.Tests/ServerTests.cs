@@ -468,6 +468,10 @@ public class ServerTests
             connectionEvent.Set();
         };
 
+        using ClientWebSocket socket = new();
+        await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
+        connectionEvent.Wait(TimeSpan.FromSeconds(1));
+
         ManualResetEventSlim serverReceivedSentDataEvent = new(false);
         string? receivedData = null;
         this.server!.DataReceived += (sender, e) =>
@@ -475,10 +479,6 @@ public class ServerTests
             receivedData = e.Data;
             serverReceivedSentDataEvent.Set();
         };
-
-        using ClientWebSocket socket = new();
-        await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
-        connectionEvent.Wait(TimeSpan.FromSeconds(1));
 
         ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(1024, 1024);
         Task<WebSocketReceiveResult> receiveTask = Task.Run(() => socket.ReceiveAsync(buffer, CancellationToken.None));
