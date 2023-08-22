@@ -443,6 +443,7 @@ public class ServerTests
         using HttpClient client = new();
         HttpResponseMessage responseMessage = await client.PostAsync($"http://localhost:{server.Port}/", null);
         string responseContent = await responseMessage.Content.ReadAsStringAsync();
+        Assert.That(responseContent, Is.EqualTo("hello world"));
         Assert.That(this.server.Log, Is.EquivalentTo(expectedLog));
     }
 

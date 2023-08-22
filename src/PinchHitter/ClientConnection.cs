@@ -178,7 +178,6 @@ public class ClientConnection
                 // awaitable, but we will wrap that usage in a Task to make it so.
                 byte[] receivedData = await Task.Run(() => this.ReceiveDataInternal());
                 await this.ProcessIncomingData(receivedData, receivedData.Length);
-                this.OnLogMessage(new ClientConnectionLogMessageEventArgs($"RECV {receivedData.Length} bytes"));
             }
         }
        finally
@@ -196,6 +195,7 @@ public class ClientConnection
     /// <returns>The task object representing the asynchronous operation.</returns>
     private async Task ProcessIncomingData(byte[] buffer, int receivedLength)
     {
+        this.OnLogMessage(new ClientConnectionLogMessageEventArgs($"RECV {receivedLength} bytes"));
         if (this.state == WebSocketState.None)
         {
             // A WebSocket connection has not yet been established. Treat the
