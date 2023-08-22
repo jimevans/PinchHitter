@@ -490,6 +490,8 @@ public class ServerTests
         await receiveTask;
         WebSocketReceiveResult result = receiveTask.Result;
         string sentData = Encoding.UTF8.GetString(buffer.Array!, 0, result.Count);
+        Assert.That(receivedData, Is.EqualTo("Received from client"));
+        Assert.That(sentData, Is.EqualTo("Sent to client"));
         Assert.That(this.server.Log, Is.EquivalentTo(expectedLog));
     }
 
