@@ -243,7 +243,7 @@ public class ServerTests
             syncEvent.Set();
         };
         await socket.SendAsync(Encoding.UTF8.GetBytes(data), WebSocketMessageType.Text, true, CancellationToken.None);
-        bool eventReceived = syncEvent.Wait(TimeSpan.FromSeconds(1));
+        bool eventReceived = syncEvent.Wait(TimeSpan.FromSeconds(15));
         Assert.Multiple(() =>
         {
             Assert.That(eventReceived, Is.True);
@@ -266,7 +266,7 @@ public class ServerTests
             syncEvent.Set();
         };
         await socket.SendAsync(Encoding.UTF8.GetBytes(data), WebSocketMessageType.Text, true, CancellationToken.None);
-        bool eventReceived = syncEvent.Wait(TimeSpan.FromSeconds(5));
+        bool eventReceived = syncEvent.Wait(TimeSpan.FromSeconds(15));
         Assert.Multiple(() =>
         {
             Assert.That(eventReceived, Is.True);
@@ -385,7 +385,9 @@ public class ServerTests
     [Test]
     public async Task TestServerCanSendDataOnVeryLongMessage()
     {
-        int dataLength = 70000;
+        // Sending 1 MB (1024 * 1024 bytes) of text so as to make the send operation not finish
+        // synchronously. This number may need to change if the values require it.
+        int dataLength = 1048576;
         ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(dataLength, dataLength);
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;

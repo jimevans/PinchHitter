@@ -112,7 +112,7 @@ public class ClientConnection
         // In .NETStandard 2.1, we could simply call Socket.SendAsync,
         // which is awaitable already. For .NETStandard 2.0, we will use
         // a synchronous call, but schedule it as a task to make it awaitable.
-        int bytesSent = await Task.Run(() => this.clientSocket.Send(data, SocketFlags.None));
+        int bytesSent = await Task.Run(() => this.SendDataInternal(data));
         this.OnLogMessage(new ClientConnectionLogMessageEventArgs($"SEND {bytesSent} bytes"));
     }
 
@@ -251,12 +251,37 @@ public class ClientConnection
         await this.SendData(closeFrame.Data);
     }
 
+    private int SendDataInternal(byte[] data)
+    {
+        SocketAsyncEventArgs socketAsyncEventArgs = new()
+        {
+            SocketFlags = SocketFlags.None,
+        };
+        socketAsyncEventArgs.SetBuffer(data, 0, data.Length);
+
+        ManualResetEventSlim completedEvent = new(false);
+        socketAsyncEventArgs.Completed += (sender, e) =>
+        {
+            completedEvent.Set();
+        };
+
+        bool operationIsPending = this.clientSocket.SendAsync(socketAsyncEventArgs);
+        if (operationIsPending)
+        {
+            completedEvent.Wait(this.cancellationTokenSource.Token);
+        }
+
+        return socketAsyncEventArgs.BytesTransferred;
+    }
+
     private byte[] ReceiveDataInternal()
     {
         byte[] buffer = new byte[this.bufferSize];
-        SocketAsyncEventArgs socketAsyncEventArgs = new();
+        SocketAsyncEventArgs socketAsyncEventArgs = new()
+        {
+            SocketFlags = SocketFlags.None,
+        };
         socketAsyncEventArgs.SetBuffer(buffer, 0, buffer.Length);
-        socketAsyncEventArgs.SocketFlags = SocketFlags.None;
 
         ManualResetEventSlim completedEvent = new(false);
         socketAsyncEventArgs.Completed += (sender, e) =>

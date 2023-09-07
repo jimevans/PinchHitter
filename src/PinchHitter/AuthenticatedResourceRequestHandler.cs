@@ -6,7 +6,6 @@
 namespace PinchHitter;
 
 using System.Net;
-using System.Text;
 
 /// <summary>
 /// Handles an HTTP request requiring authentication.
@@ -47,10 +46,10 @@ public class AuthenticatedResourceRequestHandler : WebResourceRequestHandler
             responseData = new HttpResponse(request.Id)
             {
                 StatusCode = HttpStatusCode.Unauthorized,
+                BodyContent = WebContent.AsHtmlDocument("<h1>401 Unauthorized</h1><div>You are not authorized to view this resource</div>"),
             };
             this.AddStandardResponseHeaders(responseData);
             responseData.Headers["Www-Authenticate"] = new List<string>() { "Basic" };
-            responseData.BodyContent = string.Empty;
         }
         else
         {
@@ -59,9 +58,9 @@ public class AuthenticatedResourceRequestHandler : WebResourceRequestHandler
                 responseData = new HttpResponse(request.Id)
                 {
                     StatusCode = HttpStatusCode.BadRequest,
+                    BodyContent = WebContent.AsHtmlDocument("<h1>400 Invalid request</h1><div>The authorization request was incorrect</div>"),
                 };
                 this.AddStandardResponseHeaders(responseData);
-                responseData.BodyContent = WebContent.AsHtmlDocument("<h1>400 Invalid request</h1><div>The authorization request was incorrect</div>");
             }
             else
             {
@@ -71,9 +70,9 @@ public class AuthenticatedResourceRequestHandler : WebResourceRequestHandler
                     responseData = new HttpResponse(request.Id)
                     {
                         StatusCode = HttpStatusCode.Forbidden,
+                        BodyContent = WebContent.AsHtmlDocument("<h1>403 Forbidden</h1><div>You do not have the permissions to view this resource</div>"),
                     };
                     this.AddStandardResponseHeaders(responseData);
-                    responseData.BodyContent = WebContent.AsHtmlDocument("<h1>403 Forbidden</h1><div>You do not have the permissions to view this resource</div>");
                 }
                 else
                 {

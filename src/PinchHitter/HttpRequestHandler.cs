@@ -105,9 +105,9 @@ public abstract class HttpRequestHandler
         HttpResponse response = new(requestId)
         {
             StatusCode = statusCode,
+            BodyContent = this.data,
         };
         this.AddStandardResponseHeaders(response);
-        response.BodyContent = this.data;
         return response;
     }
 
@@ -121,6 +121,6 @@ public abstract class HttpRequestHandler
         response.Headers["Server"] = new List<string>() { "PinchHitter/0.1 .NET/6.0" };
         response.Headers["Date"] = new List<string>() { DateTime.UtcNow.ToString("ddd, dd MMM yyy HH:mm:ss GMT") };
         response.Headers["Content-Type"] = new List<string>() { this.mimeType };
-        response.Headers["Content-Length"] = new List<string>() { Encoding.UTF8.GetByteCount(this.data).ToString() };
+        response.Headers["Content-Length"] = new List<string>() { Encoding.UTF8.GetByteCount(response.BodyContent).ToString() };
     }
 }
