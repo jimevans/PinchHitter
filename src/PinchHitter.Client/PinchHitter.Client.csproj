@@ -10,4 +10,8 @@
   <ItemGroup>
     <ProjectReference Include="..\PinchHitter\PinchHitter.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Content Include=".\content\**" CopyToOutputDirectory="Always" />
+  </ItemGroup>
 </Project>

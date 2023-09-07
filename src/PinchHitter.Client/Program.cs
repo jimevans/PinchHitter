@@ -6,7 +6,7 @@ Server server = new();
 
 server.RegisterHandler("/", new RedirectRequestHandler("/index.html"));
 server.RegisterHandler("/index.html", new WebResourceRequestHandler(WebContent.AsHtmlDocument("<h1>Welcome to the PinchHitter web server</h1><p>You can browse using localhost</p>")));
-AuthenticatedResourceRequestHandler authHandler = new("Hello World");
+AuthenticatedResourceRequestHandler authHandler = new("<div>Hello World</div>");
 authHandler.AddAuthenticator(new BasicWebAuthenticator("myUser", "myPassword"));
 server.RegisterHandler("/auth", authHandler);
 
