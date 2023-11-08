@@ -46,7 +46,7 @@ public class AuthenticatedResourceRequestHandler : WebResourceRequestHandler
             responseData = new HttpResponse(request.Id)
             {
                 StatusCode = HttpStatusCode.Unauthorized,
-                BodyContent = WebContent.AsHtmlDocument("<h1>401 Unauthorized</h1><div>You are not authorized to view this resource</div>"),
+                TextBodyContent = WebContent.AsHtmlDocument("<h1>401 Unauthorized</h1><div>You are not authorized to view this resource</div>"),
             };
             this.AddStandardResponseHeaders(responseData);
             responseData.Headers["Www-Authenticate"] = new List<string>() { "Basic" };
@@ -58,7 +58,7 @@ public class AuthenticatedResourceRequestHandler : WebResourceRequestHandler
                 responseData = new HttpResponse(request.Id)
                 {
                     StatusCode = HttpStatusCode.BadRequest,
-                    BodyContent = WebContent.AsHtmlDocument("<h1>400 Invalid request</h1><div>The authorization request was incorrect</div>"),
+                    TextBodyContent = WebContent.AsHtmlDocument("<h1>400 Invalid request</h1><div>The authorization request was incorrect</div>"),
                 };
                 this.AddStandardResponseHeaders(responseData);
             }
@@ -70,7 +70,7 @@ public class AuthenticatedResourceRequestHandler : WebResourceRequestHandler
                     responseData = new HttpResponse(request.Id)
                     {
                         StatusCode = HttpStatusCode.Forbidden,
-                        BodyContent = WebContent.AsHtmlDocument("<h1>403 Forbidden</h1><div>You do not have the permissions to view this resource</div>"),
+                        TextBodyContent = WebContent.AsHtmlDocument("<h1>403 Forbidden</h1><div>You do not have the permissions to view this resource</div>"),
                     };
                     this.AddStandardResponseHeaders(responseData);
                 }

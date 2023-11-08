@@ -33,7 +33,7 @@ public class RequestHandledEventArgs : EventArgs
         this.httpVersion = response.HttpVersion;
         this.statusCode = response.StatusCode;
         this.reasonPhrase = response.ReasonPhrase;
-        this.body = response.BodyContent;
+        this.body = response.TextBodyContent;
         Dictionary<string, IList<string>> readOnlyHeaders = new();
         foreach (KeyValuePair<string, List<string>> pair in response.Headers)
         {

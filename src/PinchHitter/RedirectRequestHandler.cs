@@ -35,7 +35,6 @@ public class RedirectRequestHandler : HttpRequestHandler
         HttpResponse responseData = this.CreateHttpResponse(request.Id, HttpStatusCode.MovedPermanently);
         responseData.Headers["Location"] = new List<string>() { this.redirectUrl };
         responseData.Headers["Content-Length"] = new List<string>() { "0" };
-        responseData.BodyContent = string.Empty;
         return responseData;
     }
 }

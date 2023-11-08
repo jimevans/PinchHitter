@@ -29,7 +29,7 @@ public class HttpResponse
     private readonly Dictionary<string, List<string>> headers = new();
     private string httpVersion = "HTTP/1.1";
     private HttpStatusCode statusCode = HttpStatusCode.OK;
-    private string bodyContent = string.Empty;
+    private byte[] bodyContent = { };
 
     /// <summary>
     /// Initializes a new instance of the <see cref="HttpResponse"/> class.
@@ -79,7 +79,12 @@ public class HttpResponse
     /// <summary>
     /// Gets or sets the body content of this HTTP response as an array of bytes.
     /// </summary>
-    public string BodyContent { get => this.bodyContent; set => this.bodyContent = value; }
+    public byte[] BodyContent { get => this.bodyContent; set => this.bodyContent = value; }
+
+    /// <summary>
+    /// Gets or sets the body content as a string.
+    /// </summary>
+    public string TextBodyContent { get => Encoding.UTF8.GetString(this.bodyContent); set => this.bodyContent = Encoding.UTF8.GetBytes(value); }
 
     /// <summary>
     /// Converts this HTTP response into an array of bytes suitable for sending across a socket connection.
@@ -100,15 +105,18 @@ public class HttpResponse
         }
 
         responseLines.Add(string.Empty);
-        if (string.IsNullOrEmpty(this.bodyContent))
+        responseLines.Add(string.Empty);
+
+        string[] headerArray = responseLines.ToArray();
+
+        string header = string.Join("\r\n", responseLines.ToArray());
+        List<byte> responseBuffer = new();
+        responseBuffer.AddRange(Encoding.UTF8.GetBytes(string.Join("\r\n", responseLines.ToArray())));
+        if (this.bodyContent.Length != 0)
         {
-            responseLines.Add(string.Empty);
-        }
-        else
-        {
-            responseLines.Add(this.bodyContent);
+            responseBuffer.AddRange(this.bodyContent);
         }
 
-        return Encoding.UTF8.GetBytes(string.Join("\r\n", responseLines.ToArray()));
+        return responseBuffer.ToArray();
     }
 }
