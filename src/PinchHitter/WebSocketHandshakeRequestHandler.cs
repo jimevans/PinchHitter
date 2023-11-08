@@ -22,7 +22,7 @@ public class WebSocketHandshakeRequestHandler : HttpRequestHandler
     /// Initializes a new instance of the <see cref="WebSocketHandshakeRequestHandler"/> class.
     /// </summary>
     public WebSocketHandshakeRequestHandler()
-        : base(string.Empty)
+        : base(""u8.ToArray())
     {
     }
 

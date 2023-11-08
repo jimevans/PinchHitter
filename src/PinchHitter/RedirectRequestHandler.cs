@@ -19,7 +19,7 @@ public class RedirectRequestHandler : HttpRequestHandler
     /// </summary>
     /// <param name="redirectUrl">The URL, relative to the root, to which to redirect the request.</param>
     public RedirectRequestHandler(string redirectUrl)
-        : base(string.Empty)
+        : base(""u8.ToArray())
     {
         this.redirectUrl = redirectUrl;
     }

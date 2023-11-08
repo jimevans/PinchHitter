@@ -6,6 +6,7 @@
 namespace PinchHitter;
 
 using System.Net;
+using System.Text;
 
 /// <summary>
 /// Handles requests where the request is invalid.
@@ -17,7 +18,7 @@ public class BadRequestHandler : HttpRequestHandler
     /// </summary>
     /// <param name="content">The content of the Not Found page to be served.</param>
     public BadRequestHandler(string content)
-        : base(content)
+        : base(Encoding.UTF8.GetBytes(content))
     {
     }
 

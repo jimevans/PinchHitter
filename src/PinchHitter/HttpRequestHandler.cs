@@ -17,15 +17,6 @@ public abstract class HttpRequestHandler
     private string mimeType = "text/html;charset=utf-8";
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="HttpRequestHandler"/> class with a string.
-    /// </summary>
-    /// <param name="data">A string representing the data of this handler to be served. The string will be converted to a byte array using UTF-8 encoding.</param>
-    public HttpRequestHandler(string data)
-        : this(Encoding.UTF8.GetBytes(data))
-    {
-    }
-
-    /// <summary>
     /// Initializes a new instance of the <see cref="HttpRequestHandler"/> class with a byte array.
     /// </summary>
     /// <param name="data">A byte array representing the data of this handler to be served.</param>
