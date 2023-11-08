@@ -1,3 +1,4 @@
 {
-    "omnisharp.enableRoslynAnalyzers": true
+    "dotnet.defaultSolution": "PinchHitter.sln",
+    "sarif-viewer.connectToGithubCodeScanning": "off"
 }
