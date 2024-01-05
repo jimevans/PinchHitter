@@ -423,7 +423,7 @@ public class ServerTests
         {
             "Client connected",
             "RECV 41 bytes",
-            "SEND 185 bytes"
+            "SEND 184 bytes"
         };
         this.server!.RegisterHandler("/", new WebResourceRequestHandler("hello world"));
         using HttpClient client = new();
@@ -439,7 +439,7 @@ public class ServerTests
         {
             "Client connected",
             "RECV 61 bytes",
-            "SEND 185 bytes"
+            "SEND 184 bytes"
         };
         this.server!.RegisterHandler("/", HttpMethod.Post, new WebResourceRequestHandler("hello world"));
         using HttpClient client = new();
@@ -457,7 +457,7 @@ public class ServerTests
         { 
             "Client connected",
             "RECV 154 bytes",
-            "SEND 259 bytes",
+            "SEND 258 bytes",
             "RECV 26 bytes",
             "SEND 16 bytes"
         };
