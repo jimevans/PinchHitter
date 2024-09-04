@@ -102,7 +102,7 @@ public class Server
         }
 
         this.isAcceptingConnections = true;
-        _ = Task.Run(() => this.AcceptConnections()).ConfigureAwait(false);
+        _ = Task.Run(() => this.AcceptConnectionsAsync()).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -130,14 +130,14 @@ public class Server
     /// </summary>
     /// <param name="connectionId">The ID of the client connection to disconnect.</param>
     /// <returns>The task object representing the asynchronous operation.</returns>
-    public async Task Disconnect(string connectionId)
+    public async Task DisconnectAsync(string connectionId)
     {
         if (!this.activeConnections.TryGetValue(connectionId, out ClientConnection? connection))
         {
             throw new PinchHitterException($"Unknown connection ID {connectionId}");
         }
 
-        await connection.Disconnect();
+        await connection.DisconnectAsync().ConfigureAwait(false);
     }
 
     /// <summary>
@@ -167,10 +167,10 @@ public class Server
     /// <param name="connectionId">The ID of the client connection to send data to.</param>
     /// <param name="data">The data to be sent.</param>
     /// <returns>The task object representing the asynchronous operation.</returns>
-    public async Task SendData(string connectionId, string data)
+    public async Task SendDataAsync(string connectionId, string data)
     {
         WebSocketFrame frame = WebSocketFrame.Encode(data, WebSocketOpcodeType.Text);
-        await this.SendData(connectionId, frame.Data);
+        await this.SendDataAsync(connectionId, frame.Data).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -198,14 +198,14 @@ public class Server
     /// <param name="data">A byte array representing the data to be sent.</param>
     /// <returns>The task object representing the asynchronous operation.</returns>
     /// <exception cref="PinchHitterException">Thrown when an invalid connection ID is specified.</exception>
-    protected async Task SendData(string connectionId, byte[] data)
+    protected async Task SendDataAsync(string connectionId, byte[] data)
     {
         if (!this.activeConnections.TryGetValue(connectionId, out ClientConnection? connection))
         {
             throw new PinchHitterException($"Unknown connection ID {connectionId}");
         }
 
-        await connection.SendData(data);
+        await connection.SendDataAsync(data).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -253,11 +253,11 @@ public class Server
         }
     }
 
-    private async Task AcceptConnections()
+    private async Task AcceptConnectionsAsync()
     {
         while (true)
         {
-            Socket socket = await this.listener.AcceptSocketAsync();
+            Socket socket = await this.listener.AcceptSocketAsync().ConfigureAwait(false);
             if (this.isAcceptingConnections)
             {
                 ClientConnection clientConnection = new(socket, this.httpProcessor, this.bufferSize);

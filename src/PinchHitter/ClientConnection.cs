@@ -72,7 +72,7 @@ public class ClientConnection
     /// </summary>
     public void StartReceiving()
     {
-        _ = Task.Run(() => this.ReceiveData());
+        _ = Task.Run(() => this.ReceiveDataAsync());
     }
 
     /// <summary>
@@ -87,7 +87,7 @@ public class ClientConnection
     /// Asynchronously forcibly disconnects the server without following the appropriate shutdown procedure.
     /// </summary>
     /// <returns>The task object representing the asynchronous operation.</returns>
-    public async Task Disconnect()
+    public async Task DisconnectAsync()
     {
         if (this.state == WebSocketState.None)
         {
@@ -96,7 +96,7 @@ public class ClientConnection
 
         if (this.state == WebSocketState.Open)
         {
-            await this.SendCloseFrame("Initiating close");
+            await this.SendCloseFrameAsync("Initiating close").ConfigureAwait(false);
             this.state = WebSocketState.CloseSent;
         }
     }
@@ -107,12 +107,12 @@ public class ClientConnection
     /// <param name="data">A byte array representing the data to be sent.</param>
     /// <returns>The task object representing the asynchronous operation.</returns>
     /// <exception cref="PinchHitterException">Thrown when there is no client socket connected.</exception>
-    public async Task SendData(byte[] data)
+    public async Task SendDataAsync(byte[] data)
     {
         // In .NETStandard 2.1, we could simply call Socket.SendAsync,
         // which is awaitable already. For .NETStandard 2.0, we will use
         // a synchronous call, but schedule it as a task to make it awaitable.
-        int bytesSent = await Task.Run(() => this.SendDataInternal(data));
+        int bytesSent = await Task.Run(() => this.SendDataInternal(data)).ConfigureAwait(false);
         this.OnLogMessage(new ClientConnectionLogMessageEventArgs($"SEND {bytesSent} bytes"));
     }
 
@@ -164,7 +164,7 @@ public class ClientConnection
         }
     }
 
-    private async Task ReceiveData()
+    private async Task ReceiveDataAsync()
     {
         this.OnStarting(new ClientConnectionEventArgs(this.connectionId));
         try
@@ -176,8 +176,8 @@ public class ClientConnection
                 // incoming data. For .NETStandard 2.0, we must use the original
                 // ReceiveAsync method on the socket directly, which is not
                 // awaitable, but we will wrap that usage in a Task to make it so.
-                byte[] receivedData = await Task.Run(() => this.ReceiveDataInternal());
-                await this.ProcessIncomingData(receivedData, receivedData.Length);
+                byte[] receivedData = await Task.Run(() => this.ReceiveDataInternal()).ConfigureAwait(false);
+                await this.ProcessIncomingDataAsync(receivedData, receivedData.Length).ConfigureAwait(false);
             }
         }
        finally
@@ -193,7 +193,7 @@ public class ClientConnection
     /// <param name="buffer">A byte array buffer containing the data.</param>
     /// <param name="receivedLength">The length of the data in the buffer.</param>
     /// <returns>The task object representing the asynchronous operation.</returns>
-    private async Task ProcessIncomingData(byte[] buffer, int receivedLength)
+    private async Task ProcessIncomingDataAsync(byte[] buffer, int receivedLength)
     {
         this.OnLogMessage(new ClientConnectionLogMessageEventArgs($"RECV {receivedLength} bytes"));
         if (this.state == WebSocketState.None)
@@ -211,7 +211,7 @@ public class ClientConnection
                 this.state = WebSocketState.Connecting;
             }
 
-            await this.SendData(response.ToByteArray());
+            await this.SendDataAsync(response.ToByteArray()).ConfigureAwait(false);
 
             if (request.IsWebSocketHandshakeRequest)
             {
@@ -237,7 +237,7 @@ public class ClientConnection
                 if (!this.ignoreCloseRequest)
                 {
                     this.state = WebSocketState.CloseReceived;
-                    await this.SendCloseFrame("Acknowledge close");
+                    await this.SendCloseFrameAsync("Acknowledge close").ConfigureAwait(false);
                 }
 
                 this.state = WebSocketState.Closed;
@@ -245,10 +245,10 @@ public class ClientConnection
         }
     }
 
-    private async Task SendCloseFrame(string message)
+    private async Task SendCloseFrameAsync(string message)
     {
         WebSocketFrame closeFrame = WebSocketFrame.Encode(message, WebSocketOpcodeType.ClosedConnection);
-        await this.SendData(closeFrame.Data);
+        await this.SendDataAsync(closeFrame.Data).ConfigureAwait(false);
     }
 
     private int SendDataInternal(byte[] data)

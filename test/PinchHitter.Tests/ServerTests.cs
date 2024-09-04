@@ -79,12 +79,12 @@ public class ServerTests
         connectionEvent.Wait(TimeSpan.FromSeconds(1));
         string responseContent = await responseMessage.Content.ReadAsStringAsync();
 
-        await this.server.Disconnect(connectionId);
+        await this.server.DisconnectAsync(connectionId);
         bool disconnectEventRaised = disconnectionEvent.Wait(TimeSpan.FromSeconds(1));
         Assert.Multiple(() =>
         {
             Assert.That(disconnectEventRaised, Is.True);
-            Assert.That(async () => await this.server.Disconnect(connectionId), Throws.InstanceOf<PinchHitterException>());
+            Assert.That(async () => await this.server.DisconnectAsync(connectionId), Throws.InstanceOf<PinchHitterException>());
         });
     }
 
@@ -142,7 +142,7 @@ public class ServerTests
         connectionEvent.Wait(TimeSpan.FromSeconds(1));
 
         Task<WebSocketReceiveResult> receiveTask = Task.Run(() => socket.ReceiveAsync(buffer, CancellationToken.None));
-        await server.Disconnect(connectionId);
+        await server.DisconnectAsync(connectionId);
         await receiveTask;
         Assert.Multiple(() =>
         {
@@ -291,7 +291,7 @@ public class ServerTests
         connectionEvent.Wait(TimeSpan.FromSeconds(1));
         Task<WebSocketReceiveResult> receiveTask = Task.Run(() => socket.ReceiveAsync(buffer, CancellationToken.None));
 
-        await server.SendData(connectionId, "Sent to client");
+        await server.SendDataAsync(connectionId, "Sent to client");
         await receiveTask;
         WebSocketReceiveResult result = receiveTask.Result;
         string receivedData = Encoding.UTF8.GetString(buffer.Array!, 0, result.Count);
@@ -331,8 +331,8 @@ public class ServerTests
         string connectionId2 = connectionId;
         Task<WebSocketReceiveResult> receiveTask2 = Task.Run(() => socket2.ReceiveAsync(buffer2, CancellationToken.None));
 
-        await server.SendData(connectionId1, "Sent to client 1");
-        await server.SendData(connectionId2, "Sent to client 2");
+        await server.SendDataAsync(connectionId1, "Sent to client 1");
+        await server.SendDataAsync(connectionId2, "Sent to client 2");
         Task.WaitAll(receiveTask1, receiveTask2);
         WebSocketReceiveResult result1 = receiveTask1.Result;
         string receivedData1 = Encoding.UTF8.GetString(buffer1.Array!, 0, result1.Count);
@@ -369,7 +369,7 @@ public class ServerTests
         Task<WebSocketReceiveResult> receiveTask = Task.Run(() => socket.ReceiveAsync(buffer, CancellationToken.None));
 
         string data = new('a', dataLength);
-        await server.SendData(connectionId, data);
+        await server.SendDataAsync(connectionId, data);
         await receiveTask;
         WebSocketReceiveResult result = receiveTask.Result;
         string receivedData = Encoding.UTF8.GetString(buffer.Array!, 0, result.Count);
@@ -403,7 +403,7 @@ public class ServerTests
         Task<WebSocketReceiveResult> receiveTask = Task.Run(() => socket.ReceiveAsync(buffer, CancellationToken.None));
 
         string data = new('a', dataLength);
-        await server.SendData(connectionId, data);
+        await server.SendDataAsync(connectionId, data);
         receiveTask.Wait(TimeSpan.FromSeconds(5));
         WebSocketReceiveResult result = receiveTask.Result;
         string receivedData = Encoding.UTF8.GetString(buffer.Array!, 0, result.Count);
@@ -488,7 +488,7 @@ public class ServerTests
         await socket.SendAsync(Encoding.UTF8.GetBytes("Received from client"), WebSocketMessageType.Text, true, CancellationToken.None);
         bool eventReceived = serverReceivedSentDataEvent.Wait(TimeSpan.FromSeconds(3));
         Assert.That(eventReceived, Is.True);
-        await server.SendData(connectionId, "Sent to client");
+        await server.SendDataAsync(connectionId, "Sent to client");
         await receiveTask;
         WebSocketReceiveResult result = receiveTask.Result;
         string sentData = Encoding.UTF8.GetString(buffer.Array!, 0, result.Count);
@@ -506,13 +506,13 @@ public class ServerTests
     [Test]
     public void TestDisconnectingForInvalidConnectionIdThrows()
     {
-        Assert.That(async () => await this.server!.Disconnect("invalidConnectionId"), Throws.InstanceOf<PinchHitterException>());
+        Assert.That(async () => await this.server!.DisconnectAsync("invalidConnectionId"), Throws.InstanceOf<PinchHitterException>());
     }
 
     [Test]
     public void TestSendingDataForInvalidConnectionIdThrows()
     {
-        Assert.That(async () => await this.server!.SendData("invalidConnectionId", "Sent to client"), Throws.InstanceOf<PinchHitterException>());
+        Assert.That(async () => await this.server!.SendDataAsync("invalidConnectionId", "Sent to client"), Throws.InstanceOf<PinchHitterException>());
     }
 
     [Test]
