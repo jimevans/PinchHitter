@@ -43,10 +43,10 @@ public class ServerTests
         this.server!.RegisterHandler("/", new WebResourceRequestHandler("hello world"));
 
         string receivedData = string.Empty;
-        this.server.DataReceived += (sender, e) =>
+        this.server.OnDataReceived.AddObserver((e) =>
         {
             receivedData = e.Data;
-        };
+        });
         using HttpClient client = new();
         HttpResponseMessage responseMessage = await client.GetAsync($"http://localhost:{server.Port}/");
         string responseContent = await responseMessage.Content.ReadAsStringAsync();
@@ -58,20 +58,20 @@ public class ServerTests
     {
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;
-        server!.ClientConnected += (sender, e) =>
+        server!.OnClientConnected.AddObserver((e) =>
         {
             connectionId = e.ConnectionId;
             connectionEvent.Set();
-        };
+        });
 
         ManualResetEventSlim disconnectionEvent = new(false);
-        server.ClientDisconnected += (sender, e) =>
+        server.OnClientDisconnected.AddObserver((e) =>
         {
             if (e.ConnectionId == connectionId)
             {
                 disconnectionEvent.Set();
             }
-        };
+        });
 
         this.server!.RegisterHandler("/", new WebResourceRequestHandler("hello world"));
         using HttpClient client = new();
@@ -107,11 +107,11 @@ public class ServerTests
     {
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;
-        server!.ClientConnected += (sender, e) =>
+        server!.OnClientConnected.AddObserver((e) =>
         {
             connectionId = e.ConnectionId;
             connectionEvent.Set();
-        };
+        });
 
         ClientWebSocket socket = new();
         await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
@@ -131,11 +131,11 @@ public class ServerTests
         ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(1024, 1024);
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;
-        server!.ClientConnected += (sender, e) =>
+        server!.OnClientConnected.AddObserver((e) =>
         {
             connectionId = e.ConnectionId;
             connectionEvent.Set();
-        };
+        });
 
         using ClientWebSocket socket = new();
         await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
@@ -156,11 +156,11 @@ public class ServerTests
     {
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;
-        server!.ClientConnected += (sender, e) =>
+        server!.OnClientConnected.AddObserver((e) =>
         {
             connectionId = e.ConnectionId;
             connectionEvent.Set();
-        };
+        });
 
         using ClientWebSocket socket = new();
         await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
@@ -169,12 +169,12 @@ public class ServerTests
         ManualResetEventSlim syncEvent = new(false);
         string? receivedData = null;
         string receivedDataConnectionId = string.Empty;
-        this.server!.DataReceived += (sender, e) =>
+        this.server!.OnDataReceived.AddObserver((e) =>
         {
             receivedDataConnectionId = e.ConnectionId;
             receivedData = e.Data;
             syncEvent.Set();
-        };
+        });
 
         await socket.SendAsync(Encoding.UTF8.GetBytes("Received from client"), WebSocketMessageType.Text, true, CancellationToken.None);
         bool eventReceived = syncEvent.Wait(TimeSpan.FromSeconds(1));
@@ -192,11 +192,11 @@ public class ServerTests
     {
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;
-        this.server!.ClientConnected += (sender, e) =>
+        this.server!.OnClientConnected.AddObserver((e) =>
         {
             connectionId = e.ConnectionId;
             connectionEvent.Set();
-        };
+        });
 
         using ClientWebSocket socket1 = new();
         await socket1.ConnectAsync(new Uri($"ws://localhost:{this.server.Port}"), CancellationToken.None);
@@ -211,11 +211,11 @@ public class ServerTests
 
         ManualResetEventSlim receivedDataEvent = new(false);
         List<string> receivedData = new();
-        this.server.DataReceived += (sender, e) =>
+        this.server.OnDataReceived.AddObserver((e) =>
         {
             receivedData.Add($"{e.ConnectionId}: {e.Data}");
             receivedDataEvent.Set();
-        };
+        });
 
         await socket1.SendAsync(Encoding.UTF8.GetBytes("Sent from client 1"), WebSocketMessageType.Text, true, CancellationToken.None);
         bool isDataReceivedEventSet = receivedDataEvent.Wait(TimeSpan.FromSeconds(2));
@@ -237,11 +237,11 @@ public class ServerTests
         string data = new('a', dataLength);
         using ClientWebSocket socket = new();
         await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
-        this.server!.DataReceived += (sender, e) =>
+        this.server!.OnDataReceived.AddObserver((e) =>
         {
             receivedData = e.Data;
             syncEvent.Set();
-        };
+        });
         await socket.SendAsync(Encoding.UTF8.GetBytes(data), WebSocketMessageType.Text, true, CancellationToken.None);
         bool eventReceived = syncEvent.Wait(TimeSpan.FromSeconds(15));
         Assert.Multiple(() =>
@@ -260,11 +260,11 @@ public class ServerTests
         string data = new('a', dataLength);
         using ClientWebSocket socket = new();
         await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
-        this.server!.DataReceived += (sender, e) =>
+        this.server!.OnDataReceived.AddObserver((e) =>
         {
             receivedData = e.Data;
             syncEvent.Set();
-        };
+        });
         await socket.SendAsync(Encoding.UTF8.GetBytes(data), WebSocketMessageType.Text, true, CancellationToken.None);
         bool eventReceived = syncEvent.Wait(TimeSpan.FromSeconds(15));
         Assert.Multiple(() =>
@@ -280,11 +280,11 @@ public class ServerTests
         ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(1024, 1024);
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;
-        server!.ClientConnected += (sender, e) =>
+        server!.OnClientConnected.AddObserver((e) =>
         {
             connectionId = e.ConnectionId;
             connectionEvent.Set();
-        };
+        });
 
         using ClientWebSocket socket = new();
         await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
@@ -309,11 +309,11 @@ public class ServerTests
     {
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;
-        server!.ClientConnected += (sender, e) =>
+        server!.OnClientConnected.AddObserver((e) =>
         {
             connectionId = e.ConnectionId;
             connectionEvent.Set();
-        };
+        });
 
         ArraySegment<byte> buffer1 = WebSocket.CreateClientBuffer(1024, 1024);
         using ClientWebSocket socket1 = new();
@@ -357,11 +357,11 @@ public class ServerTests
         ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(dataLength, dataLength);
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;
-        server!.ClientConnected += (sender, e) =>
+        server!.OnClientConnected.AddObserver((e) =>
         {
             connectionId = e.ConnectionId;
             connectionEvent.Set();
-        };
+        });
 
         using ClientWebSocket socket = new();
         await socket.ConnectAsync(new Uri($"ws://localhost:{this.server.Port}"), CancellationToken.None);
@@ -391,11 +391,11 @@ public class ServerTests
         ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(dataLength, dataLength);
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;
-        server!.ClientConnected += (sender, e) =>
+        server!.OnClientConnected.AddObserver((e) =>
         {
             connectionId = e.ConnectionId;
             connectionEvent.Set();
-        };
+        });
 
         using ClientWebSocket socket = new();
         await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
@@ -464,11 +464,11 @@ public class ServerTests
 
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;
-        server!.ClientConnected += (sender, e) =>
+        server!.OnClientConnected.AddObserver((e) =>
         {
             connectionId = e.ConnectionId;
             connectionEvent.Set();
-        };
+        });
 
         using ClientWebSocket socket = new();
         await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
@@ -476,11 +476,11 @@ public class ServerTests
 
         ManualResetEventSlim serverReceivedSentDataEvent = new(false);
         string? receivedData = null;
-        this.server!.DataReceived += (sender, e) =>
+        this.server!.OnDataReceived.AddObserver((e) =>
         {
             receivedData = e.Data;
             serverReceivedSentDataEvent.Set();
-        };
+        });
 
         ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(1024, 1024);
         Task<WebSocketReceiveResult> receiveTask = Task.Run(() => socket.ReceiveAsync(buffer, CancellationToken.None));

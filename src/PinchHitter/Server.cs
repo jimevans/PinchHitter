@@ -9,6 +9,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading.Tasks;
 
 /// <summary>
 /// An abstract base class for a server listening on a port for TCP messages and able
@@ -20,6 +21,9 @@ public class Server
     private readonly TcpListener listener;
     private readonly List<string> serverLog = new();
     private readonly HttpRequestProcessor httpProcessor = new();
+    private readonly ServerObservableEvent<ServerDataReceivedEventArgs> onServerDataReceivedEvent = new();
+    private readonly ServerObservableEvent<ClientConnectionEventArgs> onClientConnectedEvent = new();
+    private readonly ServerObservableEvent<ClientConnectionEventArgs> onClientDisconnectedEvent = new();
     private int port = 0;
     private int bufferSize = 1024;
     private bool isAcceptingConnections = false;
@@ -43,19 +47,19 @@ public class Server
     }
 
     /// <summary>
-    /// Event raised when data is received by the server.
+    /// Gets the event raised when data is received by the server.
     /// </summary>
-    public event EventHandler<ServerDataReceivedEventArgs>? DataReceived;
+    public ServerObservableEvent<ServerDataReceivedEventArgs> OnDataReceived => this.onServerDataReceivedEvent;
 
     /// <summary>
-    /// Event raised when a client connects to the server.
+    /// Gets the event raised when a client connects to the server.
     /// </summary>
-    public event EventHandler<ClientConnectionEventArgs>? ClientConnected;
+    public ServerObservableEvent<ClientConnectionEventArgs> OnClientConnected => this.onClientConnectedEvent;
 
     /// <summary>
-    /// Event raised when a client disconnects from the server.
+    /// Gets the event raised when a client disconnects from the server.
     /// </summary>
-    public event EventHandler<ClientConnectionEventArgs>? ClientDisconnected;
+    public ServerObservableEvent<ClientConnectionEventArgs> OnClientDisconnected => this.onClientDisconnectedEvent;
 
     /// <summary>
     /// Gets the port on which the server is listening for connections.
@@ -217,42 +221,6 @@ public class Server
         this.serverLog.Add(message);
     }
 
-    /// <summary>
-    /// Raises the DataReceived event.
-    /// </summary>
-    /// <param name="e">The ServerDataReceivedEventArgs object containing information about the event.</param>
-    protected virtual void OnDataReceived(ServerDataReceivedEventArgs e)
-    {
-        if (this.DataReceived is not null)
-        {
-            this.DataReceived(this, e);
-        }
-    }
-
-    /// <summary>
-    /// Raises the ClientConnected event.
-    /// </summary>
-    /// <param name="e">The ClientConnectionEventArgs object containing information about the event.</param>
-    protected virtual void OnClientConnected(ClientConnectionEventArgs e)
-    {
-        if (this.ClientConnected is not null)
-        {
-            this.ClientConnected(this, e);
-        }
-    }
-
-    /// <summary>
-    /// Raises the ClientDisconnected event.
-    /// </summary>
-    /// <param name="e">The ClientConnectionEventArgs object containing information about the event.</param>
-    protected virtual void OnClientDisconnected(ClientConnectionEventArgs e)
-    {
-        if (this.ClientDisconnected is not null)
-        {
-            this.ClientDisconnected(this, e);
-        }
-    }
-
     private async Task AcceptConnectionsAsync()
     {
         while (true)
@@ -261,37 +229,37 @@ public class Server
             if (this.isAcceptingConnections)
             {
                 ClientConnection clientConnection = new(socket, this.httpProcessor, this.bufferSize);
-                clientConnection.DataReceived += (sender, e) =>
+                clientConnection.OnDataReceived.AddObserver(async (e) =>
                 {
-                    this.OnDataReceived(new ServerDataReceivedEventArgs(e.ConnectionId, e.DataReceived));
-                };
-                clientConnection.LogMessage += (sender, e) =>
+                    await this.onServerDataReceivedEvent.NotifyObserversAsync(new ServerDataReceivedEventArgs(e.ConnectionId, e.DataReceived)).ConfigureAwait(false);
+                });
+                clientConnection.OnLogMessage.AddObserver((e) =>
                 {
                     this.LogMessage(e.Message);
-                };
-                clientConnection.Starting += (sender, e) =>
+                });
+                clientConnection.OnStarting.AddObserver(async (e) =>
                 {
-                    this.OnClientConnectionStarting(clientConnection);
-                };
-                clientConnection.Stopped += (sender, e) =>
+                    await this.OnClientConnectionStarting(clientConnection).ConfigureAwait(false);
+                });
+                clientConnection.OnStopped.AddObserver(async (e) =>
                 {
-                    this.OnClientConnectionStopped(e.ConnectionId);
-                };
+                    await this.OnClientConnectionStopped(e.ConnectionId).ConfigureAwait(false);
+                });
                 clientConnection.StartReceiving();
                 this.LogMessage("Client connected");
             }
         }
     }
 
-    private void OnClientConnectionStarting(ClientConnection connection)
+    private async Task OnClientConnectionStarting(ClientConnection connection)
     {
         this.activeConnections.TryAdd(connection.ConnectionId, connection);
-        this.OnClientConnected(new ClientConnectionEventArgs(connection.ConnectionId));
+        await this.onClientConnectedEvent.NotifyObserversAsync(new ClientConnectionEventArgs(connection.ConnectionId)).ConfigureAwait(false);
     }
 
-    private void OnClientConnectionStopped(string connectionId)
+    private async Task OnClientConnectionStopped(string connectionId)
     {
         this.activeConnections.TryRemove(connectionId, out ClientConnection? _);
-        this.OnClientDisconnected(new ClientConnectionEventArgs(connectionId));
+        await this.onClientDisconnectedEvent.NotifyObserversAsync(new ClientConnectionEventArgs(connectionId)).ConfigureAwait(false);
     }
 }

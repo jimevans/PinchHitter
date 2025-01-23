@@ -8,6 +8,7 @@ namespace PinchHitter;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
+using System.Threading.Tasks;
 
 /// <summary>
 /// Handles a client connection to the PinchHitter server.
@@ -19,6 +20,10 @@ public class ClientConnection
     private readonly Socket clientSocket;
     private readonly int bufferSize;
     private readonly HttpRequestProcessor httpProcessor;
+    private readonly ServerObservableEvent<ClientConnectionEventArgs> onStartingEvent = new();
+    private readonly ServerObservableEvent<ClientConnectionEventArgs> onStoppedEvent = new();
+    private readonly ServerObservableEvent<ClientConnectionDataReceivedEventArgs> onDataReceivedEvent = new();
+    private readonly ServerObservableEvent<ClientConnectionLogMessageEventArgs> onLogMessageEvent = new();
     private WebSocketState state = WebSocketState.None;
     private bool ignoreCloseRequest = false;
 
@@ -36,24 +41,24 @@ public class ClientConnection
     }
 
     /// <summary>
-    /// Event raised when the connection is starting and ready to receive data from the client.
+    /// Gets the event raised when the connection is starting and ready to receive data from the client.
     /// </summary>
-    public event EventHandler<ClientConnectionEventArgs>? Starting;
+    public ServerObservableEvent<ClientConnectionEventArgs> OnStarting => this.onStartingEvent;
 
     /// <summary>
-    /// Event raised when the connection is stopped and can no longer receive data from the client.
+    /// Gets the event raised when the connection is stopped and can no longer receive data from the client.
     /// </summary>
-    public event EventHandler<ClientConnectionEventArgs>? Stopped;
+    public ServerObservableEvent<ClientConnectionEventArgs> OnStopped => this.onStoppedEvent;
 
     /// <summary>
-    /// Event raised when data is received from this client connection.
+    /// Gets the event raised when data is received from this client connection.
     /// </summary>
-    public event EventHandler<ClientConnectionDataReceivedEventArgs>? DataReceived;
+    public ServerObservableEvent<ClientConnectionDataReceivedEventArgs> OnDataReceived => this.onDataReceivedEvent;
 
     /// <summary>
-    /// Event raised when messages should be logged from this client connection.
+    /// Gets the event raised when messages should be logged from this client connection.
     /// </summary>
-    public event EventHandler<ClientConnectionLogMessageEventArgs>? LogMessage;
+    public ServerObservableEvent<ClientConnectionLogMessageEventArgs> OnLogMessage => this.onLogMessageEvent;
 
     /// <summary>
     /// Gets the unique ID of this client connection.
@@ -113,60 +118,12 @@ public class ClientConnection
         // which is awaitable already. For .NETStandard 2.0, we will use
         // a synchronous call, but schedule it as a task to make it awaitable.
         int bytesSent = await Task.Run(() => this.SendDataInternal(data)).ConfigureAwait(false);
-        this.OnLogMessage(new ClientConnectionLogMessageEventArgs($"SEND {bytesSent} bytes"));
-    }
-
-    /// <summary>
-    /// Raises the DataReceived event.
-    /// </summary>
-    /// <param name="e">The ClientConnectionDataReceivedEventArgs object containing data about the event.</param>
-    protected void OnDataReceived(ClientConnectionDataReceivedEventArgs e)
-    {
-        if (this.DataReceived is not null)
-        {
-            this.DataReceived(this, e);
-        }
-    }
-
-    /// <summary>
-    /// Raises the LogMessage event.
-    /// </summary>
-    /// <param name="e">The ClientConnectionLogMessageEventArgs object containing data about the event.</param>
-    protected void OnLogMessage(ClientConnectionLogMessageEventArgs e)
-    {
-        if (this.LogMessage is not null)
-        {
-            this.LogMessage(this, e);
-        }
-    }
-
-    /// <summary>
-    /// Raises the Starting event.
-    /// </summary>
-    /// <param name="e">The ClientConnectionEventArgs object containing data about the event.</param>
-    protected void OnStarting(ClientConnectionEventArgs e)
-    {
-        if (this.Starting is not null)
-        {
-            this.Starting(this, e);
-        }
-    }
-
-    /// <summary>
-    /// Raises the Stopped event.
-    /// </summary>
-    /// <param name="e">The ClientConnectionEventArgs object containing data about the event.</param>
-    protected void OnStopped(ClientConnectionEventArgs e)
-    {
-        if (this.Stopped is not null)
-        {
-            this.Stopped(this, e);
-        }
+        await this.onLogMessageEvent.NotifyObserversAsync(new ClientConnectionLogMessageEventArgs($"SEND {bytesSent} bytes")).ConfigureAwait(false);
     }
 
     private async Task ReceiveDataAsync()
     {
-        this.OnStarting(new ClientConnectionEventArgs(this.connectionId));
+        await this.onStartingEvent.NotifyObserversAsync(new ClientConnectionEventArgs(this.connectionId)).ConfigureAwait(false);
         try
         {
             while (this.state != WebSocketState.Closed)
@@ -183,7 +140,7 @@ public class ClientConnection
        finally
         {
             this.clientSocket.Close();
-            this.OnStopped(new ClientConnectionEventArgs(this.connectionId));
+            await this.onStoppedEvent.NotifyObserversAsync(new ClientConnectionEventArgs(this.connectionId)).ConfigureAwait(false);
         }
     }
 
@@ -195,7 +152,7 @@ public class ClientConnection
     /// <returns>The task object representing the asynchronous operation.</returns>
     private async Task ProcessIncomingDataAsync(byte[] buffer, int receivedLength)
     {
-        this.OnLogMessage(new ClientConnectionLogMessageEventArgs($"RECV {receivedLength} bytes"));
+        await this.onLogMessageEvent.NotifyObserversAsync(new ClientConnectionLogMessageEventArgs($"RECV {receivedLength} bytes")).ConfigureAwait(false);
         if (this.state == WebSocketState.None)
         {
             // A WebSocket connection has not yet been established. Treat the
@@ -203,9 +160,9 @@ public class ClientConnection
             // is a request to upgrade the connection, we will handle sending
             // the expected response in ProcessHttpRequest.
             string rawRequest = Encoding.UTF8.GetString(buffer, 0, receivedLength);
-            this.OnDataReceived(new ClientConnectionDataReceivedEventArgs(this.connectionId, rawRequest));
+            await this.onDataReceivedEvent.NotifyObserversAsync(new ClientConnectionDataReceivedEventArgs(this.connectionId, rawRequest)).ConfigureAwait(false);
             _ = HttpRequest.TryParse(rawRequest, out HttpRequest request);
-            HttpResponse response = this.httpProcessor.ProcessRequest(this.connectionId, request);
+            HttpResponse response = await this.httpProcessor.ProcessRequestAsync(this.connectionId, request).ConfigureAwait(false);
             if (request.IsWebSocketHandshakeRequest)
             {
                 this.state = WebSocketState.Connecting;
@@ -229,7 +186,7 @@ public class ClientConnection
             if (frame.Opcode == WebSocketOpcodeType.Text)
             {
                 string text = Encoding.UTF8.GetString(frame.Data);
-                this.OnDataReceived(new ClientConnectionDataReceivedEventArgs(this.connectionId, text));
+                await this.onDataReceivedEvent.NotifyObserversAsync(new ClientConnectionDataReceivedEventArgs(this.connectionId, text)).ConfigureAwait(false);
             }
 
             if (frame.Opcode == WebSocketOpcodeType.ClosedConnection)

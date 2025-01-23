@@ -2,12 +2,13 @@ namespace PinchHitter;
 
 using System.Net;
 using System.Text;
+using System.Threading.Tasks;
 
 [TestFixture]
 public class AuthenticatedResourceRequestHandlerTests
 {
     [Test]
-    public void TestHandlerWithValidAuthorizationValueHeaderReturnsContent()
+    public async Task TestHandlerWithValidAuthorizationValueHeaderReturnsContent()
     {
         string userName = "goodUserName";
         string password = "GoodP@ssw0rd!";
@@ -17,7 +18,7 @@ public class AuthenticatedResourceRequestHandlerTests
 
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent:Test User Agent\r\n\r\n", out HttpRequest request);
         request.Headers.Add("Authorization", new List<string>() { $"Basic {authorizationHeaderValue}" });
-        HttpResponse response = handler.HandleRequest("connectionId", request);
+        HttpResponse response = await handler.HandleRequestAsync("connectionId", request);
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
@@ -26,7 +27,7 @@ public class AuthenticatedResourceRequestHandlerTests
     }
 
     [Test]
-    public void TestHandlerWithInvalidAuthorizationValueHeaderReturnsForbiddenResponse()
+    public async Task TestHandlerWithInvalidAuthorizationValueHeaderReturnsForbiddenResponse()
     {
         string userName = "goodUserName";
         string password = "GoodP@ssw0rd!";
@@ -35,7 +36,7 @@ public class AuthenticatedResourceRequestHandlerTests
 
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent:Test User Agent\r\n\r\n", out HttpRequest request);
         request.Headers.Add("Authorization", new List<string>() { $"Basic NotAValidHeaderValue" });
-        HttpResponse response = handler.HandleRequest("connectionId", request);
+        HttpResponse response = await handler.HandleRequestAsync("connectionId", request);
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
@@ -43,14 +44,14 @@ public class AuthenticatedResourceRequestHandlerTests
     }
 
     [Test]
-    public void TestHandlerWithoutAuthenticatorsReturnsContent()
+    public async Task TestHandlerWithoutAuthenticatorsReturnsContent()
     {
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent:Test User Agent\r\n\r\n", out HttpRequest request);
         // Disable spell checker for bogus value.
         // cspell: disable-next
         request.Headers.Add("Authorization", new List<string>() { "Basic aninvalidvaluebutusableforthistest" });
         AuthenticatedResourceRequestHandler handler = new("content");
-        HttpResponse response = handler.HandleRequest("connectionId", request);
+        HttpResponse response = await handler.HandleRequestAsync("connectionId", request);
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
@@ -59,12 +60,12 @@ public class AuthenticatedResourceRequestHandlerTests
     }
 
     [Test]
-    public void TestHandlerWithEmptyAuthorizationHeaderReturnsBadRequest()
+    public async Task TestHandlerWithEmptyAuthorizationHeaderReturnsBadRequest()
     {
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent:Test User Agent\r\n\r\n", out HttpRequest request);
         request.Headers.Add("Authorization", new List<string>());
         AuthenticatedResourceRequestHandler handler = new("content");
-        HttpResponse response = handler.HandleRequest("connectionId", request);
+        HttpResponse response = await handler.HandleRequestAsync("connectionId", request);
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
@@ -72,11 +73,11 @@ public class AuthenticatedResourceRequestHandlerTests
     }
 
     [Test]
-    public void TestRequestWithoutAuthenticationHeaderReturnsAuthChallengeResponse()
+    public async Task TestRequestWithoutAuthenticationHeaderReturnsAuthChallengeResponse()
     {
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent:Test User Agent\r\n\r\n", out HttpRequest request);
         AuthenticatedResourceRequestHandler handler = new("content");
-        HttpResponse response = handler.HandleRequest("connectionId", request);
+        HttpResponse response = await handler.HandleRequestAsync("connectionId", request);
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));

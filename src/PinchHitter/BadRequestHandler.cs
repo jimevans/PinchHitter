@@ -28,8 +28,8 @@ public class BadRequestHandler : HttpRequestHandler
     /// <param name="request">The HttpRequest object representing the request.</param>
     /// <param name="additionalData">Additional data passed into the method for handling requests.</param>
     /// <returns>An HttpResponse object representing the response.</returns>
-    protected override HttpResponse ProcessRequest(HttpRequest request, params object[] additionalData)
+    protected override Task<HttpResponse> ProcessRequestAsync(HttpRequest request, params object[] additionalData)
     {
-        return this.CreateHttpResponse(request.Id, HttpStatusCode.BadRequest);
+        return Task.FromResult<HttpResponse>(this.CreateHttpResponse(request.Id, HttpStatusCode.BadRequest));
     }
 }

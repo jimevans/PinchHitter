@@ -61,11 +61,11 @@ server.Start();
 // this server.
 ManualResetEvent connectionEvent = new(false);
 string connectionId = string.Empty;
-server.ClientConnected += (sender, e) =>
+server.OnClientConnected.AddObserver(e) =>
 {
     connectionId = e.ConnectionId;
     connectionEvent.Set();
-};
+});
 
 // Connect to the server with a ClientWebSocket instance.
 // The PinchHitter server handles the HTTP-to-WebSocket
@@ -81,14 +81,14 @@ connectionEvent.WaitOne(TimeSpan.FromSeconds(1));
 // connected client is sending the data.
 ManualResetEvent serverReceiveSyncEvent = new(false);
 string? dataReceivedFromClient = null;
-server.DataReceived += (sender, e) =>
+server.OnDataReceived.AddObserver((e) =>
 {
     if (e.ConnectionId == connectionId)
     {
         dataReceivedFromClient = e.Data;
         serverReceiveSyncEvent.Set();
     }
-};
+});
 
 // Send the data to the server asynchronously, and wait
 // for the server to have received the data.

@@ -32,7 +32,7 @@ public class WebSocketHandshakeRequestHandler : HttpRequestHandler
     /// <param name="request">The HTTP request to handle.</param>
     /// <param name="additionalData">Additional data passed into the method for handling requests.</param>
     /// <returns>The response to the HTTP request.</returns>
-    protected override HttpResponse ProcessRequest(HttpRequest request, params object[] additionalData)
+    protected override Task<HttpResponse> ProcessRequestAsync(HttpRequest request, params object[] additionalData)
     {
         string websocketSecureKey = request.Headers["Sec-WebSocket-Key"][0];
 
@@ -48,6 +48,6 @@ public class WebSocketHandshakeRequestHandler : HttpRequestHandler
         response.Headers["Connection"] = new List<string>() { "Upgrade" };
         response.Headers["Upgrade"] = new List<string>() { "websocket" };
         response.Headers["Sec-WebSocket-Accept"] = new List<string>() { websocketAcceptResponseHash };
-        return response;
+        return Task.FromResult<HttpResponse>(response);
     }
 }

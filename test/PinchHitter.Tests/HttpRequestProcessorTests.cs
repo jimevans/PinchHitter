@@ -2,26 +2,27 @@ namespace PinchHitter;
 
 using System.Net;
 using System.Text;
+using System.Threading.Tasks;
 
 [TestFixture]
 public class HttpRequestProcessorTests
 {
     [Test]
-    public void TestProcessRequest()
+    public async Task TestProcessRequest()
     {
         HttpRequestProcessor processor = new();
         processor.RegisterHandler("/", new WebResourceRequestHandler("Hello world"));
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n", out HttpRequest request);
-        HttpResponse response = processor.ProcessRequest("connectionId", request);
+        HttpResponse response = await processor.ProcessRequestAsync("connectionId", request);
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
 
     [Test]
-    public void TestProcessingRequestRaisesRequestHandlingEvent()
+    public async Task TestProcessingRequestRaisesRequestHandlingEvent()
     {
         ManualResetEventSlim syncEvent = new(false);
         HttpRequestHandler handler = new WebResourceRequestHandler("Hello world");
-        handler.RequestHandling += (sender, e) => {
+        handler.OnRequestHandling.AddObserver((e) => {
             Assert.Multiple(() =>
             {
                 Assert.That(e.ConnectionId, Is.EqualTo("connectionId"));
@@ -34,22 +35,22 @@ public class HttpRequestProcessorTests
                 Assert.That(e.Body, Is.Empty);
             });
             syncEvent.Set();
-        };
+        });
 
         HttpRequestProcessor processor = new();
         processor.RegisterHandler("/", handler);
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n", out HttpRequest request);
-        HttpResponse response = processor.ProcessRequest("connectionId", request);
+        HttpResponse response = await processor.ProcessRequestAsync("connectionId", request);
         bool eventRaised = syncEvent.Wait(TimeSpan.FromSeconds(1));
         Assert.That(eventRaised, Is.EqualTo(true));
     }
 
     [Test]
-    public void TestProcessingRequestRaisesRequestHandledEvent()
+    public async Task TestProcessingRequestRaisesRequestHandledEvent()
     {
         ManualResetEventSlim syncEvent = new(false);
         HttpRequestHandler handler = new WebResourceRequestHandler("Hello world");
-        handler.RequestHandled += (sender, e) => {
+        handler.OnRequestHandled.AddObserver((e) => {
             Assert.Multiple(() =>
             {
                 Assert.That(e.ConnectionId, Is.EqualTo("connectionId"));
@@ -66,32 +67,32 @@ public class HttpRequestProcessorTests
                 Assert.That(e.Body, Is.EqualTo("Hello world"));
             });
             syncEvent.Set();
-        };
+        });
 
         HttpRequestProcessor processor = new();
         processor.RegisterHandler("/", handler);
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n", out HttpRequest request);
-        HttpResponse response = processor.ProcessRequest("connectionId", request);
+        HttpResponse response = await processor.ProcessRequestAsync("connectionId", request);
         bool eventRaised = syncEvent.Wait(TimeSpan.FromSeconds(1));
         Assert.That(eventRaised, Is.EqualTo(true));
     }
 
     [Test]
-    public void TestProcessNotFoundRequest()
+    public async Task TestProcessNotFoundRequest()
     {
         HttpRequestProcessor processor = new();
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n", out HttpRequest request);
-        HttpResponse response = processor.ProcessRequest("connectionId", request);
+        HttpResponse response = await processor.ProcessRequestAsync("connectionId", request);
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
     [Test]
-    public void TestProcessRedirectRequest()
+    public async Task TestProcessRedirectRequest()
     {
         HttpRequestProcessor processor = new();
         processor.RegisterHandler("/", new RedirectRequestHandler("/index.html"));
         _  = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n", out HttpRequest request);
-        HttpResponse response = processor.ProcessRequest("connectionId", request);
+        HttpResponse response = await processor.ProcessRequestAsync("connectionId", request);
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.MovedPermanently));
@@ -102,13 +103,13 @@ public class HttpRequestProcessorTests
     }
 
     [Test]
-    public void TestProcessInvalidMethodRequest()
+    public async Task TestProcessInvalidMethodRequest()
     {
         HttpRequestProcessor processor = new();
         processor.RegisterHandler("/", HttpMethod.Post, new WebResourceRequestHandler("hello"));
         processor.RegisterHandler("/", HttpMethod.Delete, new WebResourceRequestHandler("world"));
         _  = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n", out HttpRequest request);
-        HttpResponse response = processor.ProcessRequest("connectionId", request);
+        HttpResponse response = await processor.ProcessRequestAsync("connectionId", request);
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.MethodNotAllowed));
@@ -119,14 +120,14 @@ public class HttpRequestProcessorTests
     }
 
     [Test]
-    public void TestProcessRequestNeedingAuthentication()
+    public async Task TestProcessRequestNeedingAuthentication()
     {
         AuthenticatedResourceRequestHandler resource = new("hello world");
         resource.AddAuthenticator(new BasicWebAuthenticator("userName", "P@ssw0rd!"));
         HttpRequestProcessor processor = new();
         processor.RegisterHandler("/", resource);
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n", out HttpRequest request);
-        HttpResponse response = processor.ProcessRequest("connectionId", request);
+        HttpResponse response = await processor.ProcessRequestAsync("connectionId", request);
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
@@ -137,7 +138,7 @@ public class HttpRequestProcessorTests
     }
 
     [Test]
-    public void TestProcessRequestWithValidAuthorizationResponse()
+    public async Task TestProcessRequestWithValidAuthorizationResponse()
     {
         string userName = "userName";
         string password = "P@ssw0rd!";
@@ -149,7 +150,7 @@ public class HttpRequestProcessorTests
         processor.RegisterHandler("/", resource);
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n", out HttpRequest request);
         request.Headers["Authorization"] = new List<string>() { $"Basic {base64AuthHeaderValue}" };
-        HttpResponse response = processor.ProcessRequest("connectionId", request);
+        HttpResponse response = await processor.ProcessRequestAsync("connectionId", request);
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
@@ -158,7 +159,7 @@ public class HttpRequestProcessorTests
     }
 
     [Test]
-    public void TestProcessRequestWithNonAuthorizingResponse()
+    public async Task TestProcessRequestWithNonAuthorizingResponse()
     {
         string userName = "userName";
         string password = "P@ssw0rd!";
@@ -170,7 +171,7 @@ public class HttpRequestProcessorTests
         processor.RegisterHandler("/", resource);
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n", out HttpRequest request);
         request.Headers["Authorization"] = new List<string>() { $"Basic {base64AuthHeaderValue}" };
-        HttpResponse response = processor.ProcessRequest("connectionId", request);
+        HttpResponse response = await processor.ProcessRequestAsync("connectionId", request);
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
@@ -178,7 +179,7 @@ public class HttpRequestProcessorTests
     }
 
     [Test]
-    public void TestProcessRequestWithInvalidAuthorizationResponse()
+    public async Task TestProcessRequestWithInvalidAuthorizationResponse()
     {
         string userName = "userName";
         string password = "P@ssw0rd!";
@@ -190,7 +191,7 @@ public class HttpRequestProcessorTests
         processor.RegisterHandler("/", resource);
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n", out HttpRequest request);
         request.Headers["Authorization"] = new List<string>();
-        HttpResponse response = processor.ProcessRequest("connectionId", request);
+        HttpResponse response = await processor.ProcessRequestAsync("connectionId", request);
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
@@ -198,13 +199,13 @@ public class HttpRequestProcessorTests
     }
 
     [Test]
-    public void TestProcessMalformedRequestResponse()
+    public async Task TestProcessMalformedRequestResponse()
     {
         WebResourceRequestHandler resource = new("hello world");
         HttpRequestProcessor processor = new();
         processor.RegisterHandler("/", resource);
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\n\r\n", out HttpRequest request);
-        HttpResponse response = processor.ProcessRequest("connectionId", request);
+        HttpResponse response = await processor.ProcessRequestAsync("connectionId", request);
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
@@ -212,14 +213,14 @@ public class HttpRequestProcessorTests
     }
 
     [Test]
-    public void TestProcessWebSocketUpgradeRequest()
+    public async Task TestProcessWebSocketUpgradeRequest()
     {
         HttpRequestProcessor processor = new();
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n", out HttpRequest request);
         request.Headers["Connection"] = new List<string>() { "Upgrade" };
         request.Headers["Upgrade"] = new List<string>() { "websocket" };
         request.Headers["Sec-WebSocket-Key"] = new List<string>() { "AWebSocketSecurityKey" };
-        HttpResponse response = processor.ProcessRequest("connectionId", request);
+        HttpResponse response = await processor.ProcessRequestAsync("connectionId", request);
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.SwitchingProtocols));
     }
 }

@@ -6,6 +6,7 @@
 namespace PinchHitter;
 
 using System.Net;
+using System.Threading.Tasks;
 
 /// <summary>
 /// Handles an HTTP request requiring authentication.
@@ -38,7 +39,7 @@ public class AuthenticatedResourceRequestHandler : WebResourceRequestHandler
     /// <param name="request">The HTTP request to handle.</param>
     /// <param name="additionalData">Additional data passed into the method for handling requests.</param>
     /// <returns>The response to the HTTP request.</returns>
-    protected override HttpResponse ProcessRequest(HttpRequest request, params object[] additionalData)
+    protected override async Task<HttpResponse> ProcessRequestAsync(HttpRequest request, params object[] additionalData)
     {
         HttpResponse responseData;
         if (!request.Headers.ContainsKey("Authorization"))
@@ -76,7 +77,7 @@ public class AuthenticatedResourceRequestHandler : WebResourceRequestHandler
                 }
                 else
                 {
-                    responseData = base.ProcessRequest(request);
+                    responseData = await base.ProcessRequestAsync(request).ConfigureAwait(false);
                 }
             }
         }

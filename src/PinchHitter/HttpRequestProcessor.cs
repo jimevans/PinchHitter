@@ -5,6 +5,8 @@
 
 namespace PinchHitter;
 
+using System.Threading.Tasks;
+
 /// <summary>
 /// A processor for managing HTTP requests, including generating responses
 /// based on registered resource.
@@ -22,40 +24,35 @@ public class HttpRequestProcessor
     /// <param name="connectionId">The ID of the connection from which the received request is to be processed.</param>
     /// <param name="request">The HttpRequest object representing the request.</param>
     /// <returns>An HttpResponse object representing the response.</returns>
-    public virtual HttpResponse ProcessRequest(string connectionId, HttpRequest request)
+    public virtual async Task<HttpResponse> ProcessRequestAsync(string connectionId, HttpRequest request)
     {
-        HttpResponse responseData;
-        if (request.Uri is null)
-        {
-            responseData = this.invalidRequestHandler.HandleRequest(connectionId, request);
-        }
-        else
+        if (request.Uri is not null)
         {
             if (request.IsWebSocketHandshakeRequest)
             {
-                responseData = new WebSocketHandshakeRequestHandler().HandleRequest(connectionId, request);
+                return await new WebSocketHandshakeRequestHandler().HandleRequestAsync(connectionId, request).ConfigureAwait(false);
             }
             else
             {
                 if (!this.handlers.ContainsKey(request.Uri.AbsolutePath))
                 {
-                    responseData = this.notFoundHandler.HandleRequest(connectionId, request);
+                    return await this.notFoundHandler.HandleRequestAsync(connectionId, request).ConfigureAwait(false);
                 }
                 else
                 {
                     if (!this.handlers[request.Uri.AbsolutePath].ContainsKey(request.Method))
                     {
-                        responseData = this.methodNotAllowedHandler.HandleRequest(connectionId, request, this.handlers[request.Uri.AbsolutePath].Keys.ToList());
+                        return await this.methodNotAllowedHandler.HandleRequestAsync(connectionId, request, this.handlers[request.Uri.AbsolutePath].Keys.ToList()).ConfigureAwait(false);
                     }
                     else
                     {
-                        responseData = this.handlers[request.Uri.AbsolutePath][request.Method].HandleRequest(connectionId, request);
+                        return await this.handlers[request.Uri.AbsolutePath][request.Method].HandleRequestAsync(connectionId, request).ConfigureAwait(false);
                     }
                 }
             }
         }
 
-        return responseData;
+        return await this.invalidRequestHandler.HandleRequestAsync(connectionId, request).ConfigureAwait(false);
     }
 
     /// <summary>

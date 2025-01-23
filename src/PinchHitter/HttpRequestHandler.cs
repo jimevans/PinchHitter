@@ -6,13 +6,15 @@
 namespace PinchHitter;
 
 using System.Net;
-using System.Text;
+using System.Threading.Tasks;
 
 /// <summary>
 /// Handles an HTTP request.
 /// </summary>
 public abstract class HttpRequestHandler
 {
+    private readonly ServerObservableEvent<RequestHandlingEventArgs> onRequestHandlingEvent = new();
+    private readonly ServerObservableEvent<RequestHandledEventArgs> onRequestHandledEvent = new();
     private readonly byte[] data;
     private string mimeType = "text/html;charset=utf-8";
 
@@ -26,14 +28,14 @@ public abstract class HttpRequestHandler
     }
 
     /// <summary>
-    /// Occurs before the handler handles the HTTP request.
+    /// Gets the event that occurs before the handler handles the HTTP request.
     /// </summary>
-    public event EventHandler<RequestHandlingEventArgs>? RequestHandling;
+    public ServerObservableEvent<RequestHandlingEventArgs> OnRequestHandling => this.onRequestHandlingEvent;
 
     /// <summary>
-    /// Occurs after the handler handles the HTTP request, but before the response is sent to the requester.
+    /// Gets the event that occurs after the handler handles the HTTP request, but before the response is sent to the requester.
     /// </summary>
-    public event EventHandler<RequestHandledEventArgs>? RequestHandled;
+    public ServerObservableEvent<RequestHandledEventArgs> OnRequestHandled => this.onRequestHandledEvent;
 
     /// <summary>
     /// Gets the data for this resource as an array of bytes.
@@ -52,11 +54,11 @@ public abstract class HttpRequestHandler
     /// <param name="request">The HTTP request to handle.</param>
     /// <param name="additionalData">Additional data passed into the method for handling requests.</param>
     /// <returns>The response to the HTTP request.</returns>
-    public HttpResponse HandleRequest(string connectionId, HttpRequest request, params object[] additionalData)
+    public async Task<HttpResponse> HandleRequestAsync(string connectionId, HttpRequest request, params object[] additionalData)
     {
-        this.OnRequestHandling(connectionId, request);
-        HttpResponse response = this.ProcessRequest(request, additionalData);
-        this.OnRequestHandled(connectionId, response);
+        await this.onRequestHandlingEvent.NotifyObserversAsync(new RequestHandlingEventArgs(connectionId, request)).ConfigureAwait(false);
+        HttpResponse response = await this.ProcessRequestAsync(request, additionalData).ConfigureAwait(false);
+        await this.onRequestHandledEvent.NotifyObserversAsync(new RequestHandledEventArgs(connectionId, response)).ConfigureAwait(false);
         return response;
     }
 
@@ -66,33 +68,7 @@ public abstract class HttpRequestHandler
     /// <param name="request">The HTTP request to handle.</param>
     /// <param name="additionalData">Additional data passed into the method for handling requests.</param>
     /// <returns>The response to the HTTP request.</returns>
-    protected abstract HttpResponse ProcessRequest(HttpRequest request, params object[] additionalData);
-
-    /// <summary>
-    /// Raises the RequestHandling event.
-    /// </summary>
-    /// <param name="connectionId">The ID of the connection from which the request was received.</param>
-    /// <param name="request">The request being handled.</param>
-    protected virtual void OnRequestHandling(string connectionId, HttpRequest request)
-    {
-        if (this.RequestHandling is not null)
-        {
-            this.RequestHandling(this, new RequestHandlingEventArgs(connectionId, request));
-        }
-    }
-
-    /// <summary>
-    /// Raises the RequestHandled event.
-    /// </summary>
-    /// <param name="connectionId">The ID of the connection to which the response will be sent.</param>
-    /// <param name="response">The response of the handled request.</param>
-    protected virtual void OnRequestHandled(string connectionId, HttpResponse response)
-    {
-        if (this.RequestHandled is not null)
-        {
-            this.RequestHandled(this, new RequestHandledEventArgs(connectionId, response));
-        }
-    }
+    protected abstract Task<HttpResponse> ProcessRequestAsync(HttpRequest request, params object[] additionalData);
 
     /// <summary>
     /// Creates an HttpResponse object from this resource.
