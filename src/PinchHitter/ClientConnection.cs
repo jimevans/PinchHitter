@@ -23,6 +23,7 @@ public class ClientConnection
     private readonly ServerObservableEvent<ClientConnectionEventArgs> onStartingEvent = new();
     private readonly ServerObservableEvent<ClientConnectionEventArgs> onStoppedEvent = new();
     private readonly ServerObservableEvent<ClientConnectionDataReceivedEventArgs> onDataReceivedEvent = new();
+    private readonly ServerObservableEvent<ClientConnectionDataSentEventArgs> onDataSentEvent = new();
     private readonly ServerObservableEvent<ClientConnectionLogMessageEventArgs> onLogMessageEvent = new();
     private WebSocketState state = WebSocketState.None;
     private bool ignoreCloseRequest = false;
@@ -54,6 +55,11 @@ public class ClientConnection
     /// Gets the event raised when data is received from this client connection.
     /// </summary>
     public ServerObservableEvent<ClientConnectionDataReceivedEventArgs> OnDataReceived => this.onDataReceivedEvent;
+
+    /// <summary>
+    /// Gets the event raised when data is received from this client connection.
+    /// </summary>
+    public ServerObservableEvent<ClientConnectionDataSentEventArgs> OnDataSent => this.onDataSentEvent;
 
     /// <summary>
     /// Gets the event raised when messages should be logged from this client connection.
@@ -119,6 +125,8 @@ public class ClientConnection
         // a synchronous call, but schedule it as a task to make it awaitable.
         int bytesSent = await Task.Run(() => this.SendDataInternal(data)).ConfigureAwait(false);
         await this.onLogMessageEvent.NotifyObserversAsync(new ClientConnectionLogMessageEventArgs($"SEND {bytesSent} bytes")).ConfigureAwait(false);
+        string text = Encoding.UTF8.GetString(data);
+        await this.onDataSentEvent.NotifyObserversAsync(new ClientConnectionDataSentEventArgs(this.connectionId, text)).ConfigureAwait(false);
     }
 
     private async Task ReceiveDataAsync()

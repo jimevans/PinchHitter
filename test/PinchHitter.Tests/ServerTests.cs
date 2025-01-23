@@ -54,6 +54,32 @@ public class ServerTests
     }
 
     [Test]
+    public async Task TestCanInterceptIncomingHttpResponses()
+    {
+        this.server!.RegisterHandler("/", new WebResourceRequestHandler("hello world"));
+
+        string connectionId = string.Empty;
+        this.server.OnClientConnected.AddObserver((e) =>
+        {
+            connectionId = e.ConnectionId;
+        });
+
+        string sendData = string.Empty;
+        string sentConnectionId = string.Empty;
+        this.server.OnDataSent.AddObserver((e) =>
+        {
+            sentConnectionId = e.ConnectionId;
+            sendData = e.Data;
+        });
+
+        using HttpClient client = new();
+        HttpResponseMessage responseMessage = await client.GetAsync($"http://localhost:{server.Port}/");
+        string responseContent = await responseMessage.Content.ReadAsStringAsync();
+        Assert.That(sentConnectionId, Is.EqualTo(connectionId));
+        Assert.That(sendData, Does.StartWith("HTTP/1.1 200 OK"));
+    }
+
+    [Test]
     public async Task TestServerCanInitiateCloseForHttpConnection()
     {
         ManualResetEventSlim connectionEvent = new(false);
@@ -425,9 +451,16 @@ public class ServerTests
             "RECV 41 bytes",
             "SEND 184 bytes"
         };
+        ManualResetEvent syncEvent = new(false);
+        this.server!.OnDataSent.AddObserver((e) =>
+        {
+            syncEvent.Set();
+        });
         this.server!.RegisterHandler("/", new WebResourceRequestHandler("hello world"));
         using HttpClient client = new();
         HttpResponseMessage responseMessage = await client.GetAsync($"http://localhost:{server.Port}/");
+        bool eventRaised = syncEvent.WaitOne(TimeSpan.FromMilliseconds(200));
+        Assert.That(eventRaised, Is.True);
         string responseContent = await responseMessage.Content.ReadAsStringAsync();
         Assert.That(this.server.Log, Is.EquivalentTo(expectedLog));
     }
@@ -441,9 +474,16 @@ public class ServerTests
             "RECV 61 bytes",
             "SEND 184 bytes"
         };
+        ManualResetEvent syncEvent = new(false);
+        this.server!.OnDataSent.AddObserver((e) =>
+        {
+            syncEvent.Set();
+        });
         this.server!.RegisterHandler("/", HttpMethod.Post, new WebResourceRequestHandler("hello world"));
         using HttpClient client = new();
         HttpResponseMessage responseMessage = await client.PostAsync($"http://localhost:{server.Port}/", null);
+        bool eventRaised = syncEvent.WaitOne(TimeSpan.FromMilliseconds(200));
+        Assert.That(eventRaised, Is.True);
         string responseContent = await responseMessage.Content.ReadAsStringAsync();
         Assert.That(responseContent, Is.EqualTo("hello world"));
         Assert.That(this.server.Log, Is.EquivalentTo(expectedLog));

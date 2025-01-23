@@ -22,6 +22,7 @@ public class Server
     private readonly List<string> serverLog = new();
     private readonly HttpRequestProcessor httpProcessor = new();
     private readonly ServerObservableEvent<ServerDataReceivedEventArgs> onServerDataReceivedEvent = new();
+    private readonly ServerObservableEvent<ServerDataSentEventArgs> onServerDataSentEvent = new();
     private readonly ServerObservableEvent<ClientConnectionEventArgs> onClientConnectedEvent = new();
     private readonly ServerObservableEvent<ClientConnectionEventArgs> onClientDisconnectedEvent = new();
     private int port = 0;
@@ -50,6 +51,11 @@ public class Server
     /// Gets the event raised when data is received by the server.
     /// </summary>
     public ServerObservableEvent<ServerDataReceivedEventArgs> OnDataReceived => this.onServerDataReceivedEvent;
+
+    /// <summary>
+    /// Gets the event raised when data is received by the server.
+    /// </summary>
+    public ServerObservableEvent<ServerDataSentEventArgs> OnDataSent => this.onServerDataSentEvent;
 
     /// <summary>
     /// Gets the event raised when a client connects to the server.
@@ -232,6 +238,10 @@ public class Server
                 clientConnection.OnDataReceived.AddObserver(async (e) =>
                 {
                     await this.onServerDataReceivedEvent.NotifyObserversAsync(new ServerDataReceivedEventArgs(e.ConnectionId, e.DataReceived)).ConfigureAwait(false);
+                });
+                clientConnection.OnDataSent.AddObserver(async (e) =>
+                {
+                    await this.onServerDataSentEvent.NotifyObserversAsync(new ServerDataSentEventArgs(e.ConnectionId, e.DataSent)).ConfigureAwait(false);
                 });
                 clientConnection.OnLogMessage.AddObserver((e) =>
                 {
