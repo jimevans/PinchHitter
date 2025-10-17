@@ -449,7 +449,7 @@ public class ServerTests
         {
             "Client connected",
             "RECV 41 bytes",
-            "SEND 184 bytes"
+            "SEND 185 bytes"
         };
         ManualResetEvent syncEvent = new(false);
         this.server!.OnDataSent.AddObserver((e) =>
@@ -472,7 +472,7 @@ public class ServerTests
         {
             "Client connected",
             "RECV 61 bytes",
-            "SEND 184 bytes"
+            "SEND 185 bytes"
         };
         ManualResetEvent syncEvent = new(false);
         this.server!.OnDataSent.AddObserver((e) =>
@@ -497,7 +497,7 @@ public class ServerTests
         { 
             "Client connected",
             "RECV 154 bytes",
-            "SEND 258 bytes",
+            "SEND 259 bytes",
             "RECV 26 bytes",
             "SEND 16 bytes"
         };

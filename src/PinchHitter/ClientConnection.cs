@@ -141,7 +141,8 @@ public class ClientConnection
                 // incoming data. For .NETStandard 2.0, we must use the original
                 // ReceiveAsync method on the socket directly, which is not
                 // awaitable, but we will wrap that usage in a Task to make it so.
-                byte[] receivedData = await Task.Run(() => this.ReceiveDataInternal()).ConfigureAwait(false);
+                Task<byte[]> receiveDataTask = Task.Run(this.ReceiveDataInternal, this.cancellationTokenSource.Token);
+                byte[] receivedData = await receiveDataTask.ConfigureAwait(false);
                 await this.ProcessIncomingDataAsync(receivedData, receivedData.Length).ConfigureAwait(false);
             }
         }
