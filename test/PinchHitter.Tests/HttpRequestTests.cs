@@ -46,6 +46,27 @@ public class HttpRequestTests
     }
 
     [Test]
+    public void TestCanParseHttpRequestWithCaseInsensitiveHeaders()
+    {
+        _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\nCookie:name1;value1\r\ncookie:name2;value2\r\n\r\nHello world", out HttpRequest request);
+        Assert.Multiple(() =>
+        {
+            Assert.That(request.HttpVersion, Is.EqualTo("HTTP/1.1"));
+            Assert.That(request.Method, Is.EqualTo(HttpMethod.Get));
+            Assert.That(request.Uri.AbsolutePath, Is.EqualTo("/"));
+            Assert.That(request.Headers, Has.Count.EqualTo(2));
+            Assert.That(request.Headers, Contains.Key("Host"));
+            Assert.That(request.Headers["Host"], Has.Count.EqualTo(1));
+            Assert.That(request.Headers["Host"][0], Is.EqualTo("example.com"));
+            Assert.That(request.Headers, Contains.Key("Cookie"));
+            Assert.That(request.Headers["Cookie"], Has.Count.EqualTo(2));
+            Assert.That(request.Headers["Cookie"][0], Is.EqualTo("name1;value1"));
+            Assert.That(request.Headers["Cookie"][1], Is.EqualTo("name2;value2"));
+            Assert.That(request.Body, Is.EqualTo("Hello world"));
+        });
+    }
+
+    [Test]
     public void TestCanParseHttpRequestWithMultipleBodySegments()
     {
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\n\r\nHello world\r\nAnd good day", out HttpRequest request);

@@ -14,7 +14,7 @@ using System.Text.RegularExpressions;
 public class HttpRequest
 {
     private readonly string requestId = Guid.NewGuid().ToString();
-    private readonly Dictionary<string, List<string>> headers = new();
+    private readonly Dictionary<string, List<string>> headers = new(StringComparer.OrdinalIgnoreCase);
     private HttpMethod method = HttpMethod.Get;
     private Uri? uri;
     private string httpVersion = string.Empty;
