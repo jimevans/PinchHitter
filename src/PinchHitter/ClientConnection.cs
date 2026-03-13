@@ -155,6 +155,13 @@ public class ClientConnection
                 // awaitable, but we will wrap that usage in a Task to make it so.
                 Task<byte[]> receiveDataTask = Task.Run(this.ReceiveDataInternal, this.cancellationTokenSource.Token);
                 byte[] receivedData = await receiveDataTask.ConfigureAwait(false);
+                if (receivedData.Length == 0)
+                {
+                    // Zero bytes received means the peer closed the TCP connection.
+                    // Exit without attempting to process or respond to the empty buffer.
+                    break;
+                }
+
                 await this.ProcessIncomingDataAsync(receivedData, receivedData.Length).ConfigureAwait(false);
             }
         }

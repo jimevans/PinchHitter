@@ -206,6 +206,36 @@ public class ServerTests
     }
 
     [Test]
+    public async Task TestServerDoesNotSendBadRequestOnPeerDisconnect()
+    {
+        // A client that connects and immediately closes the TCP connection causes
+        // ReceiveDataInternal to return zero bytes. Before CQ-1 was fixed, this
+        // triggered a spurious BadRequest response attempt on the closed socket.
+        ManualResetEventSlim disconnectedEvent = new(false);
+        server!.OnClientDisconnected.AddObserver((e) =>
+        {
+            disconnectedEvent.Set();
+        });
+
+        bool dataSent = false;
+        server.OnDataSent.AddObserver((e) =>
+        {
+            dataSent = true;
+        });
+
+        TcpClient tcpClient = new();
+        await tcpClient.ConnectAsync(IPAddress.Loopback, server.Port);
+        tcpClient.Close();
+
+        bool disconnected = disconnectedEvent.Wait(TimeSpan.FromSeconds(2));
+        Assert.Multiple(() =>
+        {
+            Assert.That(disconnected, Is.True);
+            Assert.That(dataSent, Is.False);
+        });
+    }
+
+    [Test]
     public async Task TestServerCanRespondToWebSocketCloseRequest()
     {
         ClientWebSocket socket = new();
