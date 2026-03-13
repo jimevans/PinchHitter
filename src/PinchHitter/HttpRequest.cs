@@ -146,7 +146,8 @@ public class HttpRequest
         {
             if (bodyBuilder.Length > 0)
             {
-                bodyBuilder.AppendLine();
+                // Need platform indepentdent newlines in the body.
+                bodyBuilder.Append("\n");
             }
 
             bodyBuilder.Append(requestLines[currentLine]);
