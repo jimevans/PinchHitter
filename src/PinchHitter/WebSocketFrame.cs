@@ -146,7 +146,7 @@ public class WebSocketFrame
         }
 
         byte[] buffer = new byte[dataOffset + messageLength];
-        frameHeader.CopyTo(buffer, 0);
+        Array.Copy(frameHeader, buffer, dataOffset);
         dataBytes.CopyTo(buffer, dataOffset);
         return new WebSocketFrame(opcode, buffer);
     }
