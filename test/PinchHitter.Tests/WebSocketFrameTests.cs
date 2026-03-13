@@ -45,6 +45,25 @@ public class WebSocketFrameTests
     }
 
     [Test]
+    public void TestCanEncodeMediumLargeTextFrame()
+    {
+        // 40,000 bytes is in the two-byte length range (126–65535) and above the
+        // signed-short boundary (32767), exercising the full unsigned 16-bit length path.
+        string data = new('a', 40000);
+        WebSocketFrame frame = WebSocketFrame.Encode(data);
+
+        ushort encodedLength = BinaryPrimitives.ReadUInt16BigEndian(new ReadOnlySpan<byte>(frame.Data, 2, sizeof(ushort)));
+        Assert.Multiple(() =>
+        {
+            Assert.That(frame.Opcode, Is.EqualTo(WebSocketOpcodeType.Text));
+            Assert.That(frame.Data[0], Is.EqualTo(0x81)); // FIN + Text opcode
+            Assert.That(frame.Data[1], Is.EqualTo(0x7E)); // length indicator = 126
+            Assert.That(encodedLength, Is.EqualTo(40000));
+            Assert.That(Encoding.UTF8.GetString(frame.Data, 4, 40000), Is.EqualTo(data));
+        });
+    }
+
+    [Test]
     public void TestCanEncodeLongTextFrame()
     {
         // 65536 bytes triggers the eight-byte length encoding path (>65535)
@@ -99,6 +118,20 @@ public class WebSocketFrameTests
         {
             Assert.That(frame.Opcode, Is.EqualTo(WebSocketOpcodeType.Text));
             Assert.That(Encoding.UTF8.GetString(frame.Data), Is.EqualTo(new string('a', 126)));
+        });
+    }
+
+    [Test]
+    public void TestCanDecodeMediumLargeMaskedTextFrame()
+    {
+        // 40,000 'a' bytes masked — two-byte length path, above the signed-short boundary (32767)
+        byte[] buffer = BuildMaskedFrame(0x81, Encoding.UTF8.GetBytes(new string('a', 40000)), [0x01, 0x02, 0x03, 0x04]);
+        WebSocketFrame frame = WebSocketFrame.Decode(buffer);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(frame.Opcode, Is.EqualTo(WebSocketOpcodeType.Text));
+            Assert.That(Encoding.UTF8.GetString(frame.Data), Is.EqualTo(new string('a', 40000)));
         });
     }
 

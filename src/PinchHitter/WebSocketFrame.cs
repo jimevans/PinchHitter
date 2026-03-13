@@ -66,8 +66,8 @@ public class WebSocketFrame
         if (messageLengthIndicator == MessageLengthIndicatorTwoBytes)
         {
             // Message length is between 126 and 65535 bytes, inclusive
-            ReadOnlySpan<byte> messageLengthSpan = new(buffer, 2, sizeof(short));
-            messageLength = BinaryPrimitives.ReadInt16BigEndian(messageLengthSpan);
+            ReadOnlySpan<byte> messageLengthSpan = new(buffer, 2, sizeof(ushort));
+            messageLength = BinaryPrimitives.ReadUInt16BigEndian(messageLengthSpan);
             keyOffset = 4;
         }
         else if (messageLengthIndicator == MessageLengthIndicatorEightBytes)
@@ -132,8 +132,8 @@ public class WebSocketFrame
         {
             // Message length is between 126 and 65535 bytes, inclusive
             frameHeader[1] = MessageLengthIndicatorTwoBytes;
-            Span<byte> messageLengthSpan = new(frameHeader, 2, sizeof(short));
-            BinaryPrimitives.WriteInt16BigEndian(messageLengthSpan, Convert.ToInt16(messageLength));
+            Span<byte> messageLengthSpan = new(frameHeader, 2, sizeof(ushort));
+            BinaryPrimitives.WriteUInt16BigEndian(messageLengthSpan, Convert.ToUInt16(messageLength));
             dataOffset = 4;
         }
         else

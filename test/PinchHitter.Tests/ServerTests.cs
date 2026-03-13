@@ -414,6 +414,31 @@ public class ServerTests
     }
 
     [Test]
+    public async Task TestServerCanReceiveDataOnMediumLargeMessage()
+    {
+        // 40,000 bytes falls in the two-byte WebSocket length range (126–65535) and
+        // above the signed-short boundary (32767), exercising the unsigned 16-bit path.
+        int dataLength = 40000;
+        ManualResetEventSlim syncEvent = new(false);
+        string? receivedData = null;
+        string data = new('a', dataLength);
+        using ClientWebSocket socket = new();
+        await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
+        this.server!.OnDataReceived.AddObserver((e) =>
+        {
+            receivedData = e.Data;
+            syncEvent.Set();
+        });
+        await socket.SendAsync(Encoding.UTF8.GetBytes(data), WebSocketMessageType.Text, true, CancellationToken.None);
+        bool eventReceived = syncEvent.Wait(TimeSpan.FromSeconds(15));
+        Assert.Multiple(() =>
+        {
+            Assert.That(eventReceived, Is.True);
+            Assert.That(receivedData, Is.EqualTo(data));
+        });
+    }
+
+    [Test]
     public async Task TestServerCanReceiveDataOnVeryLongMessage()
     {
         int dataLength = 70000;
@@ -534,6 +559,39 @@ public class ServerTests
         await server.SendDataAsync(connectionId, data);
         await receiveTask;
         WebSocketReceiveResult result = receiveTask.Result;
+        string receivedData = Encoding.UTF8.GetString(buffer.Array!, 0, result.Count);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.MessageType, Is.EqualTo(WebSocketMessageType.Text));
+            Assert.That(receivedData, Is.Not.Null);
+            Assert.That(receivedData, Is.EqualTo(data));
+        });
+    }
+
+    [Test]
+    public async Task TestServerCanSendDataOnMediumLargeMessage()
+    {
+        // 40,000 bytes falls in the two-byte WebSocket length range (126–65535) and
+        // above the signed-short boundary (32767), exercising the unsigned 16-bit path.
+        int dataLength = 40000;
+        ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(dataLength, dataLength);
+        ManualResetEventSlim connectionEvent = new(false);
+        string connectionId = string.Empty;
+        server!.OnClientConnected.AddObserver((e) =>
+        {
+            connectionId = e.ConnectionId;
+            connectionEvent.Set();
+        });
+
+        using ClientWebSocket socket = new();
+        await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
+        connectionEvent.Wait(TimeSpan.FromSeconds(1));
+        Task<WebSocketReceiveResult> receiveTask = Task.Run(() => socket.ReceiveAsync(buffer, CancellationToken.None));
+
+        string data = new('a', dataLength);
+        await server.SendDataAsync(connectionId, data);
+        WebSocketReceiveResult result = await receiveTask.WaitAsync(TimeSpan.FromSeconds(5));
         string receivedData = Encoding.UTF8.GetString(buffer.Array!, 0, result.Count);
 
         Assert.Multiple(() =>
