@@ -92,7 +92,7 @@ public class Server : IDisposable, IAsyncDisposable
         {
             if (this.IsAcceptingConnections)
             {
-                throw new ArgumentException("Cannot set buffer size once server has started listening for requests");
+                throw new InvalidOperationException("Cannot set buffer size once server has started listening for requests");
             }
 
             this.bufferSize = value;

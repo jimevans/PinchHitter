@@ -704,7 +704,7 @@ public class ServerTests
     [Test]
     public void TestCannotSetReceiveBufferSizeOnStartedServer()
     {
-        Assert.That(() => this.server!.BufferSize = 2048, Throws.InstanceOf<ArgumentException>());
+        Assert.That(() => this.server!.BufferSize = 2048, Throws.InstanceOf<InvalidOperationException>());
     }
 
     [Test]
