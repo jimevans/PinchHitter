@@ -237,6 +237,27 @@ public class ServerTests
     }
 
     [Test]
+    public async Task TestServerCanSimulateReenablingWebSocketCloseRequest()
+    {
+        ManualResetEventSlim connectionEvent = new(false);
+        string connectionId = string.Empty;
+        server!.OnClientConnected.AddObserver((e) =>
+        {
+            connectionId = e.ConnectionId;
+            connectionEvent.Set();
+        });
+
+        ClientWebSocket socket = new();
+        await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
+        connectionEvent.Wait(TimeSpan.FromSeconds(1));
+
+        server.IgnoreCloseConnectionRequest(connectionId, true);
+        server.IgnoreCloseConnectionRequest(connectionId, false);
+        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
+            Assert.That(socket.State, Is.EqualTo(WebSocketState.Closed));
+    }
+
+    [Test]
     public async Task TestServerCanInitiateWebSocketCloseRequest()
     {
         ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(1024, 1024);
@@ -444,7 +465,7 @@ public class ServerTests
 
         await server.SendDataAsync(connectionId1, "Sent to client 1");
         await server.SendDataAsync(connectionId2, "Sent to client 2");
-        Task.WaitAll(receiveTask1, receiveTask2);
+        await Task.WhenAll(receiveTask1, receiveTask2);
         WebSocketReceiveResult result1 = receiveTask1.Result;
         string receivedData1 = Encoding.UTF8.GetString(buffer1.Array!, 0, result1.Count);
         WebSocketReceiveResult result2 = receiveTask2.Result;
@@ -515,7 +536,8 @@ public class ServerTests
 
         string data = new('a', dataLength);
         await server.SendDataAsync(connectionId, data);
-        receiveTask.Wait(TimeSpan.FromSeconds(5));
+        bool receiveTaskCompleted = receiveTask.Wait(TimeSpan.FromSeconds(5));
+        Assert.That(receiveTaskCompleted, Is.True);
         WebSocketReceiveResult result = receiveTask.Result;
         string receivedData = Encoding.UTF8.GetString(buffer.Array!, 0, result.Count);
 

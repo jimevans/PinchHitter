@@ -27,7 +27,7 @@ public class ClientConnection
     private readonly ServerObservableEventSource<ClientConnectionLogMessageEventArgs> onLogMessageEvent = new();
     private WebSocketState state = WebSocketState.None;
     private Task receiveDataTask = Task.CompletedTask;
-    private bool ignoreCloseRequest = false;
+    private int ignoreCloseRequestFlag = 0;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ClientConnection"/> class.
@@ -77,7 +77,11 @@ public class ClientConnection
     /// requests. Allows the server to simulate malformed clients who do not correctly complete the
     /// WebSocket close handshake.
     /// </summary>
-    public bool IgnoreCloseRequest { get => this.ignoreCloseRequest; set => this.ignoreCloseRequest = value; }
+    public bool IgnoreCloseRequest
+    {
+        get => Interlocked.CompareExchange(ref this.ignoreCloseRequestFlag, 0, 0) == 1;
+        set => Interlocked.Exchange(ref this.ignoreCloseRequestFlag, value ? 1 : 0);
+    }
 
     /// <summary>
     /// Gets a task that represents the asynchronous operation of receiving data on this client connection.
@@ -208,7 +212,7 @@ public class ClientConnection
 
             if (frame.Opcode == WebSocketOpcodeType.ClosedConnection)
             {
-                if (!this.ignoreCloseRequest)
+                if (!this.IgnoreCloseRequest)
                 {
                     this.state = WebSocketState.CloseReceived;
                     await this.SendCloseFrameAsync("Acknowledge close").ConfigureAwait(false);

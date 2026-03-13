@@ -27,7 +27,7 @@ public class Server : IDisposable, IAsyncDisposable
     private readonly ServerObservableEventSource<ClientConnectionEventArgs> onClientDisconnectedEvent = new();
     private int port = 0;
     private int bufferSize = 1024;
-    private bool isAcceptingConnections = false;
+    private int isAcceptingConnectionsFlag = 0;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Server"/> class.
@@ -90,13 +90,22 @@ public class Server : IDisposable, IAsyncDisposable
 
         set
         {
-            if (this.isAcceptingConnections)
+            if (this.IsAcceptingConnections)
             {
                 throw new ArgumentException("Cannot set buffer size once server has started listening for requests");
             }
 
             this.bufferSize = value;
         }
+    }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether this server is accepting connections.
+    /// </summary>
+    private bool IsAcceptingConnections
+    {
+        get => Interlocked.CompareExchange(ref this.isAcceptingConnectionsFlag, 0, 0) == 1;
+        set => Interlocked.Exchange(ref this.isAcceptingConnectionsFlag, value ? 1 : 0);
     }
 
     /// <summary>
@@ -121,7 +130,7 @@ public class Server : IDisposable, IAsyncDisposable
             this.port = localEndpoint.Port;
         }
 
-        this.isAcceptingConnections = true;
+        this.IsAcceptingConnections = true;
         _ = Task.Run(() => this.AcceptConnectionsAsync()).ConfigureAwait(false);
     }
 
@@ -283,7 +292,7 @@ public class Server : IDisposable, IAsyncDisposable
         while (true)
         {
             Socket socket = await this.listener.AcceptSocketAsync().ConfigureAwait(false);
-            if (this.isAcceptingConnections)
+            if (this.IsAcceptingConnections)
             {
                 ClientConnection clientConnection = new(socket, this.httpProcessor, this.bufferSize);
                 this.activeConnections.TryAdd(clientConnection.ConnectionId, clientConnection);
@@ -320,9 +329,9 @@ public class Server : IDisposable, IAsyncDisposable
     private List<Task> CloseConnections()
     {
         List<Task> tasks = [];
-        if (this.isAcceptingConnections)
+        if (this.IsAcceptingConnections)
         {
-            this.isAcceptingConnections = false;
+            this.IsAcceptingConnections = false;
 
             // Snapshot before canceling: OnClientConnectionStopped removes tasks from the
             // dictionary asynchronously as each connection winds down.
