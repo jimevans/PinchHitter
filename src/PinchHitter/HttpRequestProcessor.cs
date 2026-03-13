@@ -5,6 +5,7 @@
 
 namespace PinchHitter;
 
+using System.Collections.Concurrent;
 using System.Threading.Tasks;
 
 /// <summary>
@@ -13,7 +14,7 @@ using System.Threading.Tasks;
 /// </summary>
 public class HttpRequestProcessor
 {
-    private readonly Dictionary<string, Dictionary<HttpRequestMethod, HttpRequestHandler>> handlers = new();
+    private readonly ConcurrentDictionary<string, ConcurrentDictionary<HttpRequestMethod, HttpRequestHandler>> handlers = new();
     private readonly NotFoundRequestHandler notFoundHandler = new(WebContent.AsHtmlDocument("<h1>404 Not Found</h1><div>The requested resource was not found</div>"));
     private readonly BadRequestHandler invalidRequestHandler = new(WebContent.AsHtmlDocument("<h1>400 Invalid Request</h1><div>The authorization request was incorrect</div>"));
     private readonly MethodNotAllowedRequestHandler methodNotAllowedHandler = new(WebContent.AsHtmlDocument("<h1>405 Method Not Allowed</h1><div>The requested URL does not support the requested method</div>"));
@@ -73,11 +74,6 @@ public class HttpRequestProcessor
     /// <param name="handler">The handler to register.</param>
     public virtual void RegisterHandler(string url, HttpRequestMethod method, HttpRequestHandler handler)
     {
-        if (!this.handlers.ContainsKey(url))
-        {
-            this.handlers[url] = new Dictionary<HttpRequestMethod, HttpRequestHandler>();
-        }
-
-        this.handlers[url][method] = handler;
+        this.handlers.GetOrAdd(url, _ => new ConcurrentDictionary<HttpRequestMethod, HttpRequestHandler>())[method] = handler;
     }
 }
