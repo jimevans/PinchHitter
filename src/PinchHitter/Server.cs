@@ -286,6 +286,7 @@ public class Server : IDisposable, IAsyncDisposable
             if (this.isAcceptingConnections)
             {
                 ClientConnection clientConnection = new(socket, this.httpProcessor, this.bufferSize);
+                this.activeConnections.TryAdd(clientConnection.ConnectionId, clientConnection);
                 clientConnection.OnDataReceived.AddObserver(async (e) =>
                 {
                     await this.onServerDataReceivedEvent.NotifyObserversAsync(new ServerDataReceivedEventArgs(e.ConnectionId, e.ByteCount, e.DataReceived)).ConfigureAwait(false);
@@ -341,7 +342,6 @@ public class Server : IDisposable, IAsyncDisposable
 
     private async Task OnClientConnectionStarting(ClientConnection connection)
     {
-        this.activeConnections.TryAdd(connection.ConnectionId, connection);
         await this.onClientConnectedEvent.NotifyObserversAsync(new ClientConnectionEventArgs(connection.ConnectionId)).ConfigureAwait(false);
     }
 
