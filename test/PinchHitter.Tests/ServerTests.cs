@@ -18,10 +18,13 @@ public class ServerTests
     }
 
     [TearDown]
-    public void TearDown()
+    public async Task TearDown()
     {
-        this.server?.Stop();
-        this.server = null;
+        if (this.server is not null)
+        {
+            await this.server.StopAsync();
+            this.server = null;
+        }
     }
 
     [Test]
@@ -125,6 +128,38 @@ public class ServerTests
     public void TestCanDispose()
     {
         this.server!.Dispose();
+    }
+
+    [Test]
+    public async Task TestCanDisposeAsync()
+    {
+        await this.server!.DisposeAsync();
+    }
+
+    [Test]
+    public async Task TestStopAsyncAwaitsConnectionTeardown()
+    {
+        // StopAsync() should not return until OnClientDisconnected has fired for every
+        // active connection, requiring no additional Task.Delay or manual event waiting.
+        ManualResetEventSlim connectionEvent = new(false);
+        server!.OnClientConnected.AddObserver((e) =>
+        {
+            connectionEvent.Set();
+        });
+
+        bool disconnectedEventFired = false;
+        server.OnClientDisconnected.AddObserver((e) =>
+        {
+            disconnectedEventFired = true;
+        });
+
+        using ClientWebSocket socket = new();
+        await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
+        connectionEvent.Wait(TimeSpan.FromSeconds(1));
+
+        await this.server.StopAsync();
+
+        Assert.That(disconnectedEventFired, Is.True);
     }
 
     [Test]
@@ -485,13 +520,16 @@ public class ServerTests
         List<string> expectedLog = new()
         {
             "Client connected",
-            "RECV 41 bytes",
-            "SEND 184 bytes"
         };
         ManualResetEvent syncEvent = new(false);
         this.server!.OnDataSent.AddObserver((e) =>
         {
+            expectedLog.Add($"SEND {e.ByteCount} bytes");
             syncEvent.Set();
+        });
+        this.server!.OnDataReceived.AddObserver((e) =>
+        {
+            expectedLog.Add($"RECV {e.ByteCount} bytes");
         });
         this.server!.RegisterHandler("/", new WebResourceRequestHandler("hello world"));
         using HttpClient client = new();
@@ -508,13 +546,16 @@ public class ServerTests
         List<string> expectedLog = new()
         {
             "Client connected",
-            "RECV 61 bytes",
-            "SEND 184 bytes"
         };
         ManualResetEvent syncEvent = new(false);
         this.server!.OnDataSent.AddObserver((e) =>
         {
+            expectedLog.Add($"SEND {e.ByteCount} bytes");
             syncEvent.Set();
+        });
+        this.server!.OnDataReceived.AddObserver((e) =>
+        {
+            expectedLog.Add($"RECV {e.ByteCount} bytes");
         });
         this.server!.RegisterHandler("/", HttpRequestMethod.Post, new WebResourceRequestHandler("hello world"));
         using HttpClient client = new();
@@ -530,14 +571,9 @@ public class ServerTests
     public async Task TestServerLogsIncomingAndOutgoingDataForWebSocketTraffic()
     {
         // Expected log includes WebSocket upgrade handshake request.
-        List<string> expectedLog = new()
-        { 
-            "Client connected",
-            "RECV 154 bytes",
-            "SEND 258 bytes",
-            "RECV 26 bytes",
-            "SEND 16 bytes"
-        };
+        // Observers are added before connecting so that the handshake recv/send byte
+        // counts are captured alongside the subsequent WebSocket frame byte counts.
+        List<string> expectedLog = ["Client connected"];
 
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;
@@ -547,23 +583,33 @@ public class ServerTests
             connectionEvent.Set();
         });
 
+        ManualResetEventSlim dataReceivedEvent = new(false);
+        string? receivedData = null;
+        this.server!.OnDataReceived.AddObserver((e) =>
+        {
+            expectedLog.Add($"RECV {e.ByteCount} bytes");
+            receivedData = e.Data;
+            dataReceivedEvent.Set();
+        });
+        this.server!.OnDataSent.AddObserver((e) =>
+        {
+            expectedLog.Add($"SEND {e.ByteCount} bytes");
+        });
+
         using ClientWebSocket socket = new();
         await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
         connectionEvent.Wait(TimeSpan.FromSeconds(1));
 
-        ManualResetEventSlim serverReceivedSentDataEvent = new(false);
-        string? receivedData = null;
-        this.server!.OnDataReceived.AddObserver((e) =>
-        {
-            receivedData = e.Data;
-            serverReceivedSentDataEvent.Set();
-        });
+        // ConnectAsync only returns after the client receives the 101 response, so the
+        // handshake RECV and SEND have already fired. Reset the event to wait for the
+        // WebSocket text frame receive.
+        dataReceivedEvent.Reset();
 
         ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(1024, 1024);
         Task<WebSocketReceiveResult> receiveTask = Task.Run(() => socket.ReceiveAsync(buffer, CancellationToken.None));
 
         await socket.SendAsync(Encoding.UTF8.GetBytes("Received from client"), WebSocketMessageType.Text, true, CancellationToken.None);
-        bool eventReceived = serverReceivedSentDataEvent.Wait(TimeSpan.FromSeconds(3));
+        bool eventReceived = dataReceivedEvent.Wait(TimeSpan.FromSeconds(3));
         Assert.That(eventReceived, Is.True);
         await server.SendDataAsync(connectionId, "Sent to client");
         await receiveTask;

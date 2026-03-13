@@ -16,8 +16,8 @@ using System.Threading.Tasks;
 public class ClientConnection
 {
     private readonly CancellationTokenSource cancellationTokenSource = new();
-    private readonly string connectionId = Guid.NewGuid().ToString();
     private readonly Socket clientSocket;
+    private readonly string connectionId = Guid.NewGuid().ToString();
     private readonly int bufferSize;
     private readonly HttpRequestProcessor httpProcessor;
     private readonly ServerObservableEvent<ClientConnectionEventArgs> onStartingEvent = new();
@@ -26,6 +26,7 @@ public class ClientConnection
     private readonly ServerObservableEvent<ClientConnectionDataSentEventArgs> onDataSentEvent = new();
     private readonly ServerObservableEvent<ClientConnectionLogMessageEventArgs> onLogMessageEvent = new();
     private WebSocketState state = WebSocketState.None;
+    private Task receiveDataTask = Task.CompletedTask;
     private bool ignoreCloseRequest = false;
 
     /// <summary>
@@ -79,15 +80,22 @@ public class ClientConnection
     public bool IgnoreCloseRequest { get => this.ignoreCloseRequest; set => this.ignoreCloseRequest = value; }
 
     /// <summary>
+    /// Gets a task that represents the asynchronous operation of receiving data on this client connection.
+    /// If the receiving operation has not been started, this will return a completed task.
+    /// </summary>
+    internal Task DataReceivedTask => this.receiveDataTask;
+
+    /// <summary>
     /// Starts receiving data on this client connection.
     /// </summary>
     public void StartReceiving()
     {
-        _ = Task.Run(() => this.ReceiveDataAsync());
+        this.receiveDataTask = Task.Run(() => this.ReceiveDataAsync());
     }
 
     /// <summary>
-    /// Stops receiving data on this client connection.
+    /// Stops receiving data on this client connection. Synchronizing with the
+    /// completion of the receiving task is the responsibilty of the consumer.
     /// </summary>
     public void StopReceiving()
     {
@@ -126,7 +134,7 @@ public class ClientConnection
         int bytesSent = await Task.Run(() => this.SendDataInternal(data)).ConfigureAwait(false);
         await this.onLogMessageEvent.NotifyObserversAsync(new ClientConnectionLogMessageEventArgs($"SEND {bytesSent} bytes")).ConfigureAwait(false);
         string text = Encoding.UTF8.GetString(data);
-        await this.onDataSentEvent.NotifyObserversAsync(new ClientConnectionDataSentEventArgs(this.connectionId, text)).ConfigureAwait(false);
+        await this.onDataSentEvent.NotifyObserversAsync(new ClientConnectionDataSentEventArgs(this.connectionId, bytesSent, text)).ConfigureAwait(false);
     }
 
     private async Task ReceiveDataAsync()
@@ -169,7 +177,7 @@ public class ClientConnection
             // is a request to upgrade the connection, we will handle sending
             // the expected response in ProcessHttpRequest.
             string rawRequest = Encoding.UTF8.GetString(buffer, 0, receivedLength);
-            await this.onDataReceivedEvent.NotifyObserversAsync(new ClientConnectionDataReceivedEventArgs(this.connectionId, rawRequest)).ConfigureAwait(false);
+            await this.onDataReceivedEvent.NotifyObserversAsync(new ClientConnectionDataReceivedEventArgs(this.connectionId, receivedLength, rawRequest)).ConfigureAwait(false);
             _ = HttpRequest.TryParse(rawRequest, out HttpRequest request);
             HttpResponse response = await this.httpProcessor.ProcessRequestAsync(this.connectionId, request).ConfigureAwait(false);
             if (request.IsWebSocketHandshakeRequest)
@@ -195,7 +203,7 @@ public class ClientConnection
             if (frame.Opcode == WebSocketOpcodeType.Text)
             {
                 string text = Encoding.UTF8.GetString(frame.Data);
-                await this.onDataReceivedEvent.NotifyObserversAsync(new ClientConnectionDataReceivedEventArgs(this.connectionId, text)).ConfigureAwait(false);
+                await this.onDataReceivedEvent.NotifyObserversAsync(new ClientConnectionDataReceivedEventArgs(this.connectionId, receivedLength, text)).ConfigureAwait(false);
             }
 
             if (frame.Opcode == WebSocketOpcodeType.ClosedConnection)

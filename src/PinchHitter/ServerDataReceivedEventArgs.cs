@@ -11,17 +11,20 @@ namespace PinchHitter;
 public class ServerDataReceivedEventArgs : EventArgs
 {
     private readonly string data;
+    private readonly int byteCount;
     private readonly string connectionId;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ServerDataReceivedEventArgs" /> class.
     /// </summary>
     /// <param name="connectionId">The ID of the client connection from which the data is received.</param>
+    /// <param name="byteCount">The number of bytes received from the client connection.</param>
     /// <param name="data">The data received from the connection.</param>
-    public ServerDataReceivedEventArgs(string connectionId, string data)
+    public ServerDataReceivedEventArgs(string connectionId, int byteCount, string data)
     {
         this.data = data;
         this.connectionId = connectionId;
+        this.byteCount = byteCount;
     }
 
     /// <summary>
@@ -33,4 +36,9 @@ public class ServerDataReceivedEventArgs : EventArgs
     /// Gets the data received from the connection.
     /// </summary>
     public string Data => this.data;
+
+    /// <summary>
+    /// Gets the number of bytes received from the client connection.
+    /// </summary>
+    public int ByteCount => this.byteCount;
 }

@@ -15,10 +15,10 @@ using System.Threading.Tasks;
 /// An abstract base class for a server listening on a port for TCP messages and able
 /// to process incoming data received on that port.
 /// </summary>
-public class Server : IDisposable
+public class Server : IDisposable, IAsyncDisposable
 {
-    private readonly ConcurrentDictionary<string, ClientConnection> activeConnections = new();
     private readonly TcpListener listener;
+    private readonly ConcurrentDictionary<string, ClientConnection> activeConnections = new();
     private readonly ConcurrentQueue<string> serverLog = new();
     private readonly HttpRequestProcessor httpProcessor = new();
     private readonly ServerObservableEvent<ServerDataReceivedEventArgs> onServerDataReceivedEvent = new();
@@ -120,19 +120,31 @@ public class Server : IDisposable
     /// </summary>
     public void Stop()
     {
-        if (this.isAcceptingConnections)
-        {
-            // Stop accepting connections, so that the population of the
-            // dictionary of connections is stable.
-            this.isAcceptingConnections = false;
-            foreach (KeyValuePair<string, ClientConnection> pair in this.activeConnections)
-            {
-                pair.Value.StopReceiving();
-            }
+        this.CloseConnections();
+    }
 
-            this.activeConnections.Clear();
-            this.listener.Stop();
-        }
+    /// <summary>
+    /// Asynchronously stops the server from listening for incoming connections, awaiting the
+    /// graceful teardown of all active connections before returning.
+    /// </summary>
+    /// <returns>The task object representing the asynchronous operation.</returns>
+    public async Task StopAsync()
+    {
+        List<Task> tasks = this.CloseConnections();
+
+        // Wait for all receive loops to complete. ContinueWith swallows per-task
+        // OperationCanceledExceptions that result from canceling the receive token.
+        await Task.WhenAll(tasks.Select(t => t.ContinueWith(_ => { }, TaskScheduler.Default))).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Asynchronously releases all resources used by the <see cref="Server"/>.
+    /// </summary>
+    /// <returns>The value task object representing the asynchronous operation.</returns>
+    public async ValueTask DisposeAsync()
+    {
+        await this.StopAsync().ConfigureAwait(false);
+        GC.SuppressFinalize(this);
     }
 
     /// <summary>
@@ -266,11 +278,11 @@ public class Server : IDisposable
                 ClientConnection clientConnection = new(socket, this.httpProcessor, this.bufferSize);
                 clientConnection.OnDataReceived.AddObserver(async (e) =>
                 {
-                    await this.onServerDataReceivedEvent.NotifyObserversAsync(new ServerDataReceivedEventArgs(e.ConnectionId, e.DataReceived)).ConfigureAwait(false);
+                    await this.onServerDataReceivedEvent.NotifyObserversAsync(new ServerDataReceivedEventArgs(e.ConnectionId, e.ByteCount, e.DataReceived)).ConfigureAwait(false);
                 });
                 clientConnection.OnDataSent.AddObserver(async (e) =>
                 {
-                    await this.onServerDataSentEvent.NotifyObserversAsync(new ServerDataSentEventArgs(e.ConnectionId, e.DataSent)).ConfigureAwait(false);
+                    await this.onServerDataSentEvent.NotifyObserversAsync(new ServerDataSentEventArgs(e.ConnectionId, e.ByteCount, e.DataSent)).ConfigureAwait(false);
                 });
                 clientConnection.OnLogMessage.AddObserver((e) =>
                 {
@@ -292,6 +304,29 @@ public class Server : IDisposable
                 socket.Close();
             }
         }
+    }
+
+    private List<Task> CloseConnections()
+    {
+        List<Task> tasks = [];
+        if (this.isAcceptingConnections)
+        {
+            this.isAcceptingConnections = false;
+
+            // Snapshot before canceling: OnClientConnectionStopped removes tasks from the
+            // dictionary asynchronously as each connection winds down.
+            List<ClientConnection> connections = [.. this.activeConnections.Values];
+            foreach (ClientConnection connection in connections)
+            {
+                connection.StopReceiving();
+                tasks.Add(connection.DataReceivedTask);
+            }
+
+            this.activeConnections.Clear();
+            this.listener.Stop();
+        }
+
+        return tasks;
     }
 
     private async Task OnClientConnectionStarting(ClientConnection connection)
