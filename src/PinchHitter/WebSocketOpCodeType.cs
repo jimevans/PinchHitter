@@ -28,7 +28,7 @@ public enum WebSocketOpcodeType
     /// <summary>
     /// Denotes a closed connection.
     /// </summary>
-    ClosedConnection = 8,
+    Close = 8,
 
     /// <summary>
     /// Denotes a ping.

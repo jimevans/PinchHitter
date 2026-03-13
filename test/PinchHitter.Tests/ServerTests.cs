@@ -774,4 +774,29 @@ public class ServerTests
         };
         Assert.That(localServer.BufferSize, Is.EqualTo(8192));
     }
+
+    [Test]
+    public void TestServerStartsOnSpecificPort()
+    {
+        // Find an available port by briefly binding to port 0, then release it
+        // before creating the Server so the port number is known in advance.
+        int specificPort;
+        using (TcpListener portFinder = new(IPAddress.Loopback, 0))
+        {
+            portFinder.Start();
+            specificPort = ((IPEndPoint)portFinder.LocalEndpoint).Port;
+            portFinder.Stop();
+        }
+
+        Server localServer = new(specificPort);
+        try
+        {
+            localServer.Start();
+            Assert.That(localServer.Port, Is.EqualTo(specificPort));
+        }
+        finally
+        {
+            localServer.Stop();
+        }
+    }
 }

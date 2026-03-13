@@ -33,7 +33,7 @@ public class WebSocketFrameTests
         string data = new('a', 126);
         WebSocketFrame frame = WebSocketFrame.Encode(data);
 
-        short encodedLength = BinaryPrimitives.ReadInt16BigEndian(new ReadOnlySpan<byte>(frame.Data, 2, sizeof(short)));
+        ushort encodedLength = BinaryPrimitives.ReadUInt16BigEndian(new ReadOnlySpan<byte>(frame.Data, 2, sizeof(ushort)));
         Assert.Multiple(() =>
         {
             Assert.That(frame.Opcode, Is.EqualTo(WebSocketOpcodeType.Text));
@@ -84,11 +84,11 @@ public class WebSocketFrameTests
     [Test]
     public void TestCanEncodeCloseFrame()
     {
-        WebSocketFrame frame = WebSocketFrame.Encode(string.Empty, WebSocketOpcodeType.ClosedConnection);
+        WebSocketFrame frame = WebSocketFrame.Encode(string.Empty, WebSocketOpcodeType.Close);
 
         Assert.Multiple(() =>
         {
-            Assert.That(frame.Opcode, Is.EqualTo(WebSocketOpcodeType.ClosedConnection));
+            Assert.That(frame.Opcode, Is.EqualTo(WebSocketOpcodeType.Close));
             Assert.That(frame.Data, Is.EqualTo(new byte[] { 0x88, 0x00 }));
         });
     }
@@ -156,7 +156,7 @@ public class WebSocketFrameTests
         byte[] buffer = BuildMaskedFrame(0x88, [], [0x00, 0x00, 0x00, 0x00]);
         WebSocketFrame frame = WebSocketFrame.Decode(buffer);
 
-        Assert.That(frame.Opcode, Is.EqualTo(WebSocketOpcodeType.ClosedConnection));
+        Assert.That(frame.Opcode, Is.EqualTo(WebSocketOpcodeType.Close));
     }
 
     /// <summary>

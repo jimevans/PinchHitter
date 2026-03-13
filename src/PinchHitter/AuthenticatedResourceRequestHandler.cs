@@ -28,6 +28,11 @@ public class AuthenticatedResourceRequestHandler : WebResourceRequestHandler
     /// Adds an authenticator to the request handler.
     /// </summary>
     /// <param name="authenticator">The authenticator to handle.</param>
+    /// <remarks>
+    /// This method is not thread-safe and must be called before the server begins
+    /// accepting connections. Calling it concurrently with active request handling
+    /// produces undefined behavior.
+    /// </remarks>
     public void AddAuthenticator(WebAuthenticator authenticator)
     {
         this.authenticators.Add(authenticator);

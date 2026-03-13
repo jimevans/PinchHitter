@@ -237,7 +237,7 @@ internal class ClientConnection
                 await this.onDataReceivedEvent.NotifyObserversAsync(new ClientConnectionDataReceivedEventArgs(this.connectionId, receivedLength, text)).ConfigureAwait(false);
             }
 
-            if (frame.Opcode == WebSocketOpcodeType.ClosedConnection)
+            if (frame.Opcode == WebSocketOpcodeType.Close)
             {
                 if (!this.IgnoreCloseRequest)
                 {
@@ -252,7 +252,7 @@ internal class ClientConnection
 
     private async Task SendCloseFrameAsync(string message)
     {
-        WebSocketFrame closeFrame = WebSocketFrame.Encode(message, WebSocketOpcodeType.ClosedConnection);
+        WebSocketFrame closeFrame = WebSocketFrame.Encode(message, WebSocketOpcodeType.Close);
         await this.SendDataAsync(closeFrame.Data).ConfigureAwait(false);
     }
 

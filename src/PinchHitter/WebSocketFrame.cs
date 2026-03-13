@@ -109,7 +109,7 @@ public class WebSocketFrame
     public static WebSocketFrame Encode(string data, WebSocketOpcodeType opcode = WebSocketOpcodeType.Text)
     {
         byte opcodeByte = Convert.ToByte(Convert.ToByte(opcode) | ParityBit);
-        if (opcode == WebSocketOpcodeType.ClosedConnection)
+        if (opcode == WebSocketOpcodeType.Close)
         {
             // NOTE: Hard code the close frame data.
             return new WebSocketFrame(opcode, new byte[] { opcodeByte, 0x00 });

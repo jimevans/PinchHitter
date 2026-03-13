@@ -60,6 +60,13 @@ public class ServerObservableEvent<T>
     /// <exception cref="PinchHitterException">
     /// Thrown when the user attempts to add more observers than this event allows.
     /// </exception>
+    /// <remarks>
+    /// If the handler throws an exception during execution of a handler running
+    /// synchronously, it will bubble up when NotifyObserversAsync is called, and
+    /// the Task will be set to Faulted. If the handler is set to run asynchronously,
+    /// the exception cannot be observed by the user, and will be irretrievably lost.
+    /// Accordingly, event handlers should handle exceptions within the handler body itself.
+    /// </remarks>
     public ServerEventObserver<T> AddObserver(Action<T> handler, ServerObservableEventHandlerOptions handlerOptions = ServerObservableEventHandlerOptions.None, string description = "")
     {
         Func<T, Task> wrappedHandler = (T args) =>
@@ -90,6 +97,13 @@ public class ServerObservableEvent<T>
     /// <exception cref="PinchHitterException">
     /// Thrown when the user attempts to add more observers than this event allows.
     /// </exception>
+    /// <remarks>
+    /// If the handler throws an exception during execution of a handler running
+    /// synchronously, it will bubble up when NotifyObserversAsync is called, and
+    /// the Task will be set to Faulted. If the handler is set to run asynchronously,
+    /// the exception cannot be observed by the user, and will be irretrievably lost.
+    /// Accordingly, event handlers should handle exceptions within the handler body itself.
+    /// </remarks>
     public ServerEventObserver<T> AddObserver(Func<T, Task> handler, ServerObservableEventHandlerOptions handlerOptions = ServerObservableEventHandlerOptions.None, string description = "")
     {
         if (this.maxObserverCount > 0 && this.observers.Count == this.maxObserverCount)
