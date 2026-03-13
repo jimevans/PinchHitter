@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 /// <summary>
 /// Handles a client connection to the PinchHitter server.
 /// </summary>
-public class ClientConnection
+internal class ClientConnection
 {
     private readonly CancellationTokenSource cancellationTokenSource = new();
     private readonly Socket clientSocket;
