@@ -54,6 +54,12 @@ public abstract class HttpRequestHandler
     /// <param name="request">The HTTP request to handle.</param>
     /// <param name="additionalData">Additional data passed into the method for handling requests.</param>
     /// <returns>The response to the HTTP request.</returns>
+    /// <remarks>The additionalData parameter is used to pass in any additional
+    /// data that may be needed by the handler for handling the request, such
+    /// as a list of valid HTTP methods for the URL when handling a request
+    /// with an invalid method. It is an extension point for users to be
+    /// able to register handlers that can handle arbitrary types of requests.
+    /// </remarks>
     public async Task<HttpResponse> HandleRequestAsync(string connectionId, HttpRequest request, params object[] additionalData)
     {
         await this.onRequestHandlingEvent.NotifyObserversAsync(new RequestHandlingEventArgs(connectionId, request)).ConfigureAwait(false);
@@ -68,6 +74,12 @@ public abstract class HttpRequestHandler
     /// <param name="request">The HTTP request to handle.</param>
     /// <param name="additionalData">Additional data passed into the method for handling requests.</param>
     /// <returns>The response to the HTTP request.</returns>
+    /// <remarks>The additionalData parameter is used to pass in any additional
+    /// data that may be needed by the handler for handling the request, such
+    /// as a list of valid HTTP methods for the URL when handling a request
+    /// with an invalid method. It is an extension point for users to be
+    /// able to register handlers that can handle arbitrary types of requests.
+    /// </remarks>
     protected abstract Task<HttpResponse> ProcessRequestAsync(HttpRequest request, params object[] additionalData);
 
     /// <summary>
