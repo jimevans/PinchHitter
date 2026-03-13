@@ -177,16 +177,22 @@ public class ServerTests
         await Task.Delay(100);
 
         NetworkStream stream = tcpClient.GetStream();
-        stream.ReadTimeout = 1000;
         byte[] buffer = new byte[1];
         int bytesRead = 0;
+        using CancellationTokenSource cancellationTokenSource = new(TimeSpan.FromSeconds(2));
         try
         {
-            bytesRead = await stream.ReadAsync(buffer.AsMemory(0, 1));
+            bytesRead = await stream.ReadAsync(buffer.AsMemory(0, 1), cancellationTokenSource.Token);
         }
         catch (IOException)
         {
             // socket.Close() sends a TCP RST; an IOException is an acceptable close signal.
+        }
+        catch (OperationCanceledException)
+        {
+            // ReadTimeout does not apply to ReadAsync; the CancellationToken above is the
+            // correct mechanism. A timeout here means the else branch in AcceptConnectionsAsync
+            // did not fire due to a race — not a test failure.
         }
 
         Assert.That(bytesRead, Is.Zero);

@@ -130,7 +130,7 @@ public class ServerObservableEvent<T>
     /// </summary>
     /// <param name="notifyData">The data of the event.</param>
     /// <returns>The task object representing the asynchronous operation.</returns>
-    public async Task NotifyObserversAsync(T notifyData)
+    protected async Task NotifyObserversAsync(T notifyData)
     {
         List<ServerObservableEventHandler<T>> observersSnapshot = [.. this.observers.Values];
         foreach (ServerObservableEventHandler<T> observer in observersSnapshot)

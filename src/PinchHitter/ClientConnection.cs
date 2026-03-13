@@ -20,11 +20,11 @@ public class ClientConnection
     private readonly string connectionId = Guid.NewGuid().ToString();
     private readonly int bufferSize;
     private readonly HttpRequestProcessor httpProcessor;
-    private readonly ServerObservableEvent<ClientConnectionEventArgs> onStartingEvent = new();
-    private readonly ServerObservableEvent<ClientConnectionEventArgs> onStoppedEvent = new();
-    private readonly ServerObservableEvent<ClientConnectionDataReceivedEventArgs> onDataReceivedEvent = new();
-    private readonly ServerObservableEvent<ClientConnectionDataSentEventArgs> onDataSentEvent = new();
-    private readonly ServerObservableEvent<ClientConnectionLogMessageEventArgs> onLogMessageEvent = new();
+    private readonly ServerObservableEventSource<ClientConnectionEventArgs> onStartingEvent = new();
+    private readonly ServerObservableEventSource<ClientConnectionEventArgs> onStoppedEvent = new();
+    private readonly ServerObservableEventSource<ClientConnectionDataReceivedEventArgs> onDataReceivedEvent = new();
+    private readonly ServerObservableEventSource<ClientConnectionDataSentEventArgs> onDataSentEvent = new();
+    private readonly ServerObservableEventSource<ClientConnectionLogMessageEventArgs> onLogMessageEvent = new();
     private WebSocketState state = WebSocketState.None;
     private Task receiveDataTask = Task.CompletedTask;
     private bool ignoreCloseRequest = false;

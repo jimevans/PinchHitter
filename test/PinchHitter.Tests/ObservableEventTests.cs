@@ -91,20 +91,18 @@ public class ServerObservableEventTests
         Assert.That(eventSourceString, Does.StartWith("ServerObservableEvent<TestObservableEventArgs> with observers:\n    ServerEventObserver<TestObservableEventArgs> (id:"));
     }
 
-    private class TestEventSource
+    private class TestEventSource : ServerObservableEvent<TestObservableEventArgs>
     {
-        private ServerObservableEvent<TestObservableEventArgs> testObservableEvent = new();
-
         public TestEventSource(int maxObserverCount = 0)
+            : base(maxObserverCount)
         {
-            this.testObservableEvent = new ServerObservableEvent<TestObservableEventArgs>(maxObserverCount);
         }
 
-        public ServerObservableEvent<TestObservableEventArgs> TestObservableEvent => testObservableEvent;
+        public ServerObservableEvent<TestObservableEventArgs> TestObservableEvent => this;
 
         public async Task RaiseTestEventAsync(string eventValue)
         {
-            await this.testObservableEvent.NotifyObserversAsync(new TestObservableEventArgs(eventValue));
+            await this.NotifyObserversAsync(new TestObservableEventArgs(eventValue));
         }
     }
 

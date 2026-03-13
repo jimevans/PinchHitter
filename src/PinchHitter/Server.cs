@@ -21,10 +21,10 @@ public class Server : IDisposable, IAsyncDisposable
     private readonly ConcurrentDictionary<string, ClientConnection> activeConnections = new();
     private readonly ConcurrentQueue<string> serverLog = new();
     private readonly HttpRequestProcessor httpProcessor = new();
-    private readonly ServerObservableEvent<ServerDataReceivedEventArgs> onServerDataReceivedEvent = new();
-    private readonly ServerObservableEvent<ServerDataSentEventArgs> onServerDataSentEvent = new();
-    private readonly ServerObservableEvent<ClientConnectionEventArgs> onClientConnectedEvent = new();
-    private readonly ServerObservableEvent<ClientConnectionEventArgs> onClientDisconnectedEvent = new();
+    private readonly ServerObservableEventSource<ServerDataReceivedEventArgs> onServerDataReceivedEvent = new();
+    private readonly ServerObservableEventSource<ServerDataSentEventArgs> onServerDataSentEvent = new();
+    private readonly ServerObservableEventSource<ClientConnectionEventArgs> onClientConnectedEvent = new();
+    private readonly ServerObservableEventSource<ClientConnectionEventArgs> onClientDisconnectedEvent = new();
     private int port = 0;
     private int bufferSize = 1024;
     private bool isAcceptingConnections = false;

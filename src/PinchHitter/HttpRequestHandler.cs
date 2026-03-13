@@ -13,8 +13,8 @@ using System.Threading.Tasks;
 /// </summary>
 public abstract class HttpRequestHandler
 {
-    private readonly ServerObservableEvent<RequestHandlingEventArgs> onRequestHandlingEvent = new();
-    private readonly ServerObservableEvent<RequestHandledEventArgs> onRequestHandledEvent = new();
+    private readonly ServerObservableEventSource<RequestHandlingEventArgs> onRequestHandlingEvent = new();
+    private readonly ServerObservableEventSource<RequestHandledEventArgs> onRequestHandledEvent = new();
     private readonly byte[] data;
     private string mimeType = "text/html;charset=utf-8";
 
