@@ -127,4 +127,11 @@ public class HttpRequestTests
         bool parsed = HttpRequest.TryParse("GET / HTTP/1.1", out HttpRequest _);
         Assert.That(parsed, Is.False);
     }
+
+    [Test]
+    public void TestInvalidHeaderFailsToParse()
+    {
+        bool parsed = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost example.com\r\n\r\nHello world\r\nAnd good day", out HttpRequest _);
+        Assert.That(parsed, Is.False);
+    }
 }

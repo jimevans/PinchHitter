@@ -98,6 +98,12 @@ public class HttpRequest
         {
             string rawHeader = requestLines[currentLine];
             string[] readerInfo = rawHeader.Split(new string[] { ":" }, 2, StringSplitOptions.None);
+            if (readerInfo.Length < 2)
+            {
+                parsedRequest = result;
+                return false;
+            }
+
             string headerName = readerInfo[0].Trim();
             string headerValue = readerInfo[1].Trim();
             if (result.headers.ContainsKey(headerName))
