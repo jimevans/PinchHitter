@@ -28,7 +28,7 @@ public class HttpRequestProcessorTests
                 Assert.That(e.ConnectionId, Is.EqualTo("connectionId"));
                 Assert.That(e.RequestId, Is.Not.Empty);
                 Assert.That(e.HttpVersion, Is.EqualTo("HTTP/1.1"));
-                Assert.That(e.Method, Is.EqualTo(HttpMethod.Get));
+                Assert.That(e.Method, Is.EqualTo(HttpRequestMethod.Get));
                 Assert.That(e.Uri.ToString(), Is.EqualTo("http://example.com/"));
                 Assert.That(e.Headers, Has.Count.EqualTo(1));
                 Assert.That(e.Headers, Contains.Key("Host"));
@@ -106,8 +106,8 @@ public class HttpRequestProcessorTests
     public async Task TestProcessInvalidMethodRequest()
     {
         HttpRequestProcessor processor = new();
-        processor.RegisterHandler("/", HttpMethod.Post, new WebResourceRequestHandler("hello"));
-        processor.RegisterHandler("/", HttpMethod.Delete, new WebResourceRequestHandler("world"));
+        processor.RegisterHandler("/", HttpRequestMethod.Post, new WebResourceRequestHandler("hello"));
+        processor.RegisterHandler("/", HttpRequestMethod.Delete, new WebResourceRequestHandler("world"));
         _  = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n", out HttpRequest request);
         HttpResponse response = await processor.ProcessRequestAsync("connectionId", request);
         Assert.Multiple(() =>

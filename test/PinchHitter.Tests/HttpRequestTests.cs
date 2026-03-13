@@ -10,7 +10,7 @@ public class HttpRequestTests
         Assert.Multiple(() =>
         {
             Assert.That(request.HttpVersion, Is.EqualTo("HTTP/1.1"));
-            Assert.That(request.Method, Is.EqualTo(HttpMethod.Get));
+            Assert.That(request.Method, Is.EqualTo(HttpRequestMethod.Get));
             Assert.That(request.Uri.AbsolutePath, Is.EqualTo("/"));
             Assert.That(request.Headers, Has.Count.EqualTo(2));
             Assert.That(request.Headers, Contains.Key("Host"));
@@ -31,7 +31,7 @@ public class HttpRequestTests
         Assert.Multiple(() =>
         {
             Assert.That(request.HttpVersion, Is.EqualTo("HTTP/1.1"));
-            Assert.That(request.Method, Is.EqualTo(HttpMethod.Get));
+            Assert.That(request.Method, Is.EqualTo(HttpRequestMethod.Get));
             Assert.That(request.Uri.AbsolutePath, Is.EqualTo("/"));
             Assert.That(request.Headers, Has.Count.EqualTo(2));
             Assert.That(request.Headers, Contains.Key("Host"));
@@ -52,7 +52,7 @@ public class HttpRequestTests
         Assert.Multiple(() =>
         {
             Assert.That(request.HttpVersion, Is.EqualTo("HTTP/1.1"));
-            Assert.That(request.Method, Is.EqualTo(HttpMethod.Get));
+            Assert.That(request.Method, Is.EqualTo(HttpRequestMethod.Get));
             Assert.That(request.Uri.AbsolutePath, Is.EqualTo("/"));
             Assert.That(request.Headers, Has.Count.EqualTo(2));
             Assert.That(request.Headers, Contains.Key("Host"));
@@ -73,7 +73,7 @@ public class HttpRequestTests
         Assert.Multiple(() =>
         {
             Assert.That(request.HttpVersion, Is.EqualTo("HTTP/1.1"));
-            Assert.That(request.Method, Is.EqualTo(HttpMethod.Get));
+            Assert.That(request.Method, Is.EqualTo(HttpRequestMethod.Get));
             Assert.That(request.Uri.AbsolutePath, Is.EqualTo("/"));
             Assert.That(request.Body, Is.EqualTo("Hello world\nAnd good day"));
         });
@@ -118,6 +118,13 @@ public class HttpRequestTests
     public void TestInvalidUrlFailsToParse()
     {
         bool parsed = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: \r\n\r\nHello world\r\nAnd good day", out HttpRequest _);
+        Assert.That(parsed, Is.False);
+    }
+
+    [Test]
+    public void TestInitialLineOnlyFailsToParse()
+    {
+        bool parsed = HttpRequest.TryParse("GET / HTTP/1.1", out HttpRequest _);
         Assert.That(parsed, Is.False);
     }
 }

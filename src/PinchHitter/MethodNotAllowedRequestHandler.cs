@@ -9,7 +9,7 @@ using System.Net;
 using System.Text;
 
 /// <summary>
-/// Handles requests where the request is invalid.
+/// Handles requests where the method is not allowed for the URL.
 /// </summary>
 public class MethodNotAllowedRequestHandler : HttpRequestHandler
 {
@@ -23,7 +23,19 @@ public class MethodNotAllowedRequestHandler : HttpRequestHandler
     }
 
     /// <summary>
-    /// Process an HTTP request where the requested resource is not found.
+    /// Handles an HTTP request.
+    /// </summary>
+    /// <param name="connectionId">The connection from which the HTTP request to be handled was received.</param>
+    /// <param name="request">The HTTP request to handle.</param>
+    /// <param name="verbsAllowedForUrl">A list of HTTP methods allowed for the requested URL.</param>
+    /// <returns>The response to the HTTP request.</returns>
+    public Task<HttpResponse> HandleRequestAsync(string connectionId, HttpRequest request, List<HttpRequestMethod> verbsAllowedForUrl)
+    {
+        return this.HandleRequestAsync(connectionId, request, (object)verbsAllowedForUrl);
+    }
+
+    /// <summary>
+    /// Process an HTTP request where the provided method is not allowed for the URL.
     /// </summary>
     /// <param name="request">The HttpRequest object representing the request.</param>
     /// <param name="additionalData">Additional data passed into the method for handling requests.</param>
@@ -35,14 +47,14 @@ public class MethodNotAllowedRequestHandler : HttpRequestHandler
             throw new ArgumentException("Request handler requires list of valid methods.", nameof(additionalData));
         }
 
-        if (additionalData[0] is not List<HttpMethod> validMethods)
+        if (additionalData[0] is not List<HttpRequestMethod> validMethods)
         {
             throw new ArgumentException("Additional data must be a list of HttpMethod values.", nameof(additionalData));
         }
 
         if (validMethods.Count == 0)
         {
-            throw new ArgumentException("List of HttpMethod values most contain at least one entry.", nameof(additionalData));
+            throw new ArgumentException("List of HttpMethod values must contain at least one entry.", nameof(additionalData));
         }
 
         List<string> methodStrings = validMethods.ConvertAll((x) => x.ToString().ToUpperInvariant());

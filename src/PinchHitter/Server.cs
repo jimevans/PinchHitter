@@ -15,11 +15,11 @@ using System.Threading.Tasks;
 /// An abstract base class for a server listening on a port for TCP messages and able
 /// to process incoming data received on that port.
 /// </summary>
-public class Server
+public class Server : IDisposable
 {
     private readonly ConcurrentDictionary<string, ClientConnection> activeConnections = new();
     private readonly TcpListener listener;
-    private readonly List<string> serverLog = new();
+    private readonly ConcurrentQueue<string> serverLog = new();
     private readonly HttpRequestProcessor httpProcessor = new();
     private readonly ServerObservableEvent<ServerDataReceivedEventArgs> onServerDataReceivedEvent = new();
     private readonly ServerObservableEvent<ServerDataSentEventArgs> onServerDataSentEvent = new();
@@ -53,7 +53,7 @@ public class Server
     public ServerObservableEvent<ServerDataReceivedEventArgs> OnDataReceived => this.onServerDataReceivedEvent;
 
     /// <summary>
-    /// Gets the event raised when data is received by the server.
+    /// Gets the event raised when data is sent by the server.
     /// </summary>
     public ServerObservableEvent<ServerDataSentEventArgs> OnDataSent => this.onServerDataSentEvent;
 
@@ -75,7 +75,7 @@ public class Server
     /// <summary>
     /// Gets the read-only communication log of the server.
     /// </summary>
-    public IList<string> Log => this.serverLog.AsReadOnly();
+    public IReadOnlyList<string> Log => this.serverLog.ToList().AsReadOnly();
 
     /// <summary>
     /// Gets or sets the size in bytes of the buffer for receiving incoming requests.
@@ -166,7 +166,7 @@ public class Server
     /// <param name="url">The relative URL associated with this resource.</param>
     /// <param name="method">The HTTP method for which to add the handler.</param>
     /// <param name="handler">The handler to handle HTTP requests for the given URL.</param>
-    public void RegisterHandler(string url, HttpMethod method, HttpRequestHandler handler)
+    public void RegisterHandler(string url, HttpRequestMethod method, HttpRequestHandler handler)
     {
         this.httpProcessor.RegisterHandler(url, method, handler);
     }
@@ -202,6 +202,35 @@ public class Server
     }
 
     /// <summary>
+    /// Releases all resources used by the <see cref="Server"/>.
+    /// </summary>
+    public void Dispose()
+    {
+        this.Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Releases all resources used by the <see cref="Server"/> class.
+    /// </summary>
+    /// <param name="disposing">
+    /// <see langword="true"/> to release both managed and unmanaged resources;
+    /// <see langword="false"/> to release only unmanaged resources.
+    /// </param>
+    /// <remarks>
+    /// <para>Calling this method with <see langword="false"/> will not stop the server from listening for requests or close any active connections, but will still release other resources used by the server.</para>
+    /// <para>Calling this method with <see langword="true"/> will stop the server from listening for requests and close all active connections, in addition to releasing other resources used by the server.</para>
+    /// <para>Calling this method multiple times will not cause an error, but only the first call will have an effect.</para>
+    /// </remarks>
+    protected void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            this.Stop();
+        }
+    }
+
+    /// <summary>
     /// Asynchronously sends data to the client requesting data from this server.
     /// </summary>
     /// <param name="connectionId">The ID of the client connection to send data to.</param>
@@ -224,7 +253,7 @@ public class Server
     /// <param name="message">The message to add.</param>
     protected void LogMessage(string message)
     {
-        this.serverLog.Add(message);
+        this.serverLog.Enqueue(message);
     }
 
     private async Task AcceptConnectionsAsync()
@@ -257,6 +286,10 @@ public class Server
                 });
                 clientConnection.StartReceiving();
                 this.LogMessage("Client connected");
+            }
+            else
+            {
+                socket.Close();
             }
         }
     }

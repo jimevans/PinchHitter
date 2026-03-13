@@ -1,6 +1,7 @@
 namespace PinchHitter;
 
 using System.Net;
+using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
 
@@ -118,6 +119,42 @@ public class ServerTests
     public void TestShutdownWithoutReceivingRequest()
     {
         this.server!.Stop();
+    }
+
+    [Test]
+    public void TestCanDispose()
+    {
+        this.server!.Dispose();
+    }
+
+    [Test]
+    public async Task TestServerClosesConnectionAcceptedAfterStop()
+    {
+        // Open a raw TCP connection so the OS completes the handshake and queues the
+        // socket in the listener's backlog. Calling Stop() immediately afterwards
+        // exercises the else branch in AcceptConnectionsAsync that closes any socket
+        // accepted once isAcceptingConnections is false.
+        using TcpClient tcpClient = new();
+        await tcpClient.ConnectAsync(IPAddress.Loopback, server!.Port);
+        this.server.Stop();
+
+        // Allow AcceptConnectionsAsync time to dequeue and process the socket.
+        await Task.Delay(100);
+
+        NetworkStream stream = tcpClient.GetStream();
+        stream.ReadTimeout = 1000;
+        byte[] buffer = new byte[1];
+        int bytesRead = 0;
+        try
+        {
+            bytesRead = await stream.ReadAsync(buffer.AsMemory(0, 1));
+        }
+        catch (IOException)
+        {
+            // socket.Close() sends a TCP RST; an IOException is an acceptable close signal.
+        }
+
+        Assert.That(bytesRead, Is.Zero);
     }
 
     [Test]
@@ -362,7 +399,7 @@ public class ServerTests
         Task.WaitAll(receiveTask1, receiveTask2);
         WebSocketReceiveResult result1 = receiveTask1.Result;
         string receivedData1 = Encoding.UTF8.GetString(buffer1.Array!, 0, result1.Count);
-        WebSocketReceiveResult result2 = receiveTask1.Result;
+        WebSocketReceiveResult result2 = receiveTask2.Result;
         string receivedData2 = Encoding.UTF8.GetString(buffer2.Array!, 0, result2.Count);
 
         Assert.Multiple(() =>
@@ -449,7 +486,7 @@ public class ServerTests
         {
             "Client connected",
             "RECV 41 bytes",
-            "SEND 185 bytes"
+            "SEND 184 bytes"
         };
         ManualResetEvent syncEvent = new(false);
         this.server!.OnDataSent.AddObserver((e) =>
@@ -472,14 +509,14 @@ public class ServerTests
         {
             "Client connected",
             "RECV 61 bytes",
-            "SEND 185 bytes"
+            "SEND 184 bytes"
         };
         ManualResetEvent syncEvent = new(false);
         this.server!.OnDataSent.AddObserver((e) =>
         {
             syncEvent.Set();
         });
-        this.server!.RegisterHandler("/", HttpMethod.Post, new WebResourceRequestHandler("hello world"));
+        this.server!.RegisterHandler("/", HttpRequestMethod.Post, new WebResourceRequestHandler("hello world"));
         using HttpClient client = new();
         HttpResponseMessage responseMessage = await client.PostAsync($"http://localhost:{server.Port}/", null);
         bool eventRaised = syncEvent.WaitOne(TimeSpan.FromMilliseconds(200));
@@ -497,7 +534,7 @@ public class ServerTests
         { 
             "Client connected",
             "RECV 154 bytes",
-            "SEND 259 bytes",
+            "SEND 258 bytes",
             "RECV 26 bytes",
             "SEND 16 bytes"
         };

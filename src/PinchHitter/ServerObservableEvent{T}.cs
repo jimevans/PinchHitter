@@ -5,6 +5,8 @@
 
 namespace PinchHitter;
 
+using System.Collections.Concurrent;
+
 /// <summary>
 /// Implementation of an subject in the Observer pattern for events. It can optionally be limited
 /// to a specific number of observers.
@@ -13,7 +15,7 @@ namespace PinchHitter;
 public class ServerObservableEvent<T>
     where T : EventArgs
 {
-    private readonly Dictionary<string, ServerObservableEventHandler<T>> observers = new();
+    private readonly ConcurrentDictionary<string, ServerObservableEventHandler<T>> observers = new();
     private readonly int maxObserverCount;
 
     /// <summary>
@@ -101,7 +103,7 @@ public class ServerObservableEvent<T>
             description = $"ServerEventObserver<{typeof(T).Name}> (id: {observerId})";
         }
 
-        this.observers.Add(observerId, new ServerObservableEventHandler<T>(handler, handlerOptions, description));
+        this.observers.TryAdd(observerId, new ServerObservableEventHandler<T>(handler, handlerOptions, description));
         return new ServerEventObserver<T>(this, observerId);
     }
 
@@ -111,7 +113,16 @@ public class ServerObservableEvent<T>
     /// <param name="observerId">The ID of the handler handling the event.</param>
     public void RemoveObserver(string observerId)
     {
-        this.observers.Remove(observerId);
+        this.observers.TryRemove(observerId, out _);
+    }
+
+    /// <summary>
+    /// Returns a string that represents the current object.
+    /// </summary>
+    /// <returns>A string that represents the current object.</returns>
+    public override string ToString()
+    {
+        return $"ServerObservableEvent<{typeof(T).Name}> with observers:\n    {string.Join("\n    ", this.observers.Values)}";
     }
 
     /// <summary>
@@ -121,7 +132,8 @@ public class ServerObservableEvent<T>
     /// <returns>The task object representing the asynchronous operation.</returns>
     public async Task NotifyObserversAsync(T notifyData)
     {
-        foreach (ServerObservableEventHandler<T> observer in this.observers.Values)
+        List<ServerObservableEventHandler<T>> observersSnapshot = [.. this.observers.Values];
+        foreach (ServerObservableEventHandler<T> observer in observersSnapshot)
         {
             if ((observer.Options & ServerObservableEventHandlerOptions.RunHandlerAsynchronously) == ServerObservableEventHandlerOptions.RunHandlerAsynchronously)
             {
@@ -132,15 +144,6 @@ public class ServerObservableEvent<T>
                 await observer.HandleObservedEvent(notifyData).ConfigureAwait(false);
             }
         }
-    }
-
-    /// <summary>
-    /// Returns a string that represents the current object.
-    /// </summary>
-    /// <returns>A string that represents the current object.</returns>
-    public override string ToString()
-    {
-        return $"ServerObservableEvent<{typeof(T).Name}> with observers:\n    {string.Join("\n    ", this.observers.Values)}";
     }
 
     private class ServerObservableEventHandler<TEventArgs>

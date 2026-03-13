@@ -15,7 +15,7 @@ public class HttpRequest
 {
     private readonly string requestId = Guid.NewGuid().ToString();
     private readonly Dictionary<string, List<string>> headers = new(StringComparer.OrdinalIgnoreCase);
-    private HttpMethod method = HttpMethod.Get;
+    private HttpRequestMethod method = HttpRequestMethod.Get;
     private Uri? uri;
     private string httpVersion = string.Empty;
     private string body = string.Empty;
@@ -32,7 +32,7 @@ public class HttpRequest
     /// <summary>
     /// Gets the method of this HTTP request.
     /// </summary>
-    public HttpMethod Method => this.method;
+    public HttpRequestMethod Method => this.method;
 
     /// <summary>
     /// Gets the URI of this HTTP request.
@@ -94,7 +94,7 @@ public class HttpRequest
 
         currentLine++;
 
-        while (requestLines[currentLine].Length > 0)
+        while (currentLine < requestLines.Length && requestLines[currentLine].Length > 0)
         {
             string rawHeader = requestLines[currentLine];
             string[] readerInfo = rawHeader.Split(new string[] { ":" }, 2, StringSplitOptions.None);
@@ -123,7 +123,7 @@ public class HttpRequest
             host = result.headers["Host"][0];
         }
 
-        if (!Enum.TryParse<HttpMethod>(method, true, out result.method))
+        if (!Enum.TryParse<HttpRequestMethod>(method, true, out result.method))
         {
             parsedRequest = result;
             return false;

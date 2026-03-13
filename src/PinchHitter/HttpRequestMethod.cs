@@ -1,4 +1,4 @@
-// <copyright file="HttpMethod.cs" company="PinchHitter Committers">
+// <copyright file="HttpRequestMethod.cs" company="PinchHitter Committers">
 // Copyright (c) PinchHitter Committers. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 // </copyright>
@@ -8,7 +8,7 @@ namespace PinchHitter;
 /// <summary>
 /// Represents a method of an HTTP request.
 /// </summary>
-public enum HttpMethod
+public enum HttpRequestMethod
 {
     /// <summary>
     /// The HTTP GET method.
@@ -26,7 +26,7 @@ public enum HttpMethod
     Delete,
 
     /// <summary>
-    /// The PUT DELETE method.
+    /// The HTTP PUT method.
     /// </summary>
     Put,
 

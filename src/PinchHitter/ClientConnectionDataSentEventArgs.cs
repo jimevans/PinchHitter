@@ -16,7 +16,7 @@ public class ClientConnectionDataSentEventArgs : EventArgs
     /// <summary>
     /// Initializes a new instance of the <see cref="ClientConnectionDataSentEventArgs"/> class.
     /// </summary>
-    /// <param name="connectionId">The ID of the client connection from which the data is received.</param>
+    /// <param name="connectionId">The ID of the client connection to which the data is sent.</param>
     /// <param name="dataSent">The data sent to the client connection.</param>
     public ClientConnectionDataSentEventArgs(string connectionId, string dataSent)
     {
@@ -25,7 +25,7 @@ public class ClientConnectionDataSentEventArgs : EventArgs
     }
 
     /// <summary>
-    /// Gets the ID of the client connection from which the data is received.
+    /// Gets the ID of the client connection to which the data is sent.
     /// </summary>
     public string ConnectionId => this.connectionId;
 

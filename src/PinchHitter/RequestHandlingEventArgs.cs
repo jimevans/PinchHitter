@@ -15,7 +15,7 @@ public class RequestHandlingEventArgs : EventArgs
     private readonly string connectionId;
     private readonly string requestId;
     private readonly string httpVersion;
-    private readonly HttpMethod method;
+    private readonly HttpRequestMethod method;
     private readonly Uri uri;
     private readonly string body;
     private readonly IDictionary<string, IList<string>> headers;
@@ -55,7 +55,7 @@ public class RequestHandlingEventArgs : EventArgs
     /// <summary>
     /// Gets the method of the request being processed.
     /// </summary>
-    public HttpMethod Method => this.method;
+    public HttpRequestMethod Method => this.method;
 
     /// <summary>
     /// Gets the URI of the request being processed.

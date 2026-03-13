@@ -107,11 +107,7 @@ public class HttpResponse
         responseLines.Add(string.Empty);
         responseLines.Add(string.Empty);
 
-        string[] headerArray = responseLines.ToArray();
-
-        string header = string.Join("\r\n", responseLines.ToArray());
-        List<byte> responseBuffer = new();
-        responseBuffer.AddRange(Encoding.UTF8.GetBytes(string.Join("\r\n", responseLines.ToArray())));
+        List<byte> responseBuffer = [.. Encoding.UTF8.GetBytes(string.Join("\r\n", [.. responseLines]))];
         if (this.bodyContent.Length != 0)
         {
             responseBuffer.AddRange(this.bodyContent);

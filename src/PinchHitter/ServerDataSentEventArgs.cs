@@ -6,7 +6,7 @@
 namespace PinchHitter;
 
 /// <summary>
-/// Object containing event data for events raised when data is sent from a the test web server.
+/// Object containing event data for events raised when data is sent from the test web server.
 /// </summary>
 public class ServerDataSentEventArgs : EventArgs
 {
@@ -16,7 +16,7 @@ public class ServerDataSentEventArgs : EventArgs
     /// <summary>
     /// Initializes a new instance of the <see cref="ServerDataSentEventArgs" /> class.
     /// </summary>
-    /// <param name="connectionId">The ID of the client connection from which the data is received.</param>
+    /// <param name="connectionId">The ID of the client connection to which the data is sent.</param>
     /// <param name="data">The data sent to the connection.</param>
     public ServerDataSentEventArgs(string connectionId, string data)
     {
@@ -25,7 +25,7 @@ public class ServerDataSentEventArgs : EventArgs
     }
 
     /// <summary>
-    /// Gets the ID of the client connection from which the data is received.
+    /// Gets the ID of the client connection to which the data is sent.
     /// </summary>
     public string ConnectionId => this.connectionId;
 

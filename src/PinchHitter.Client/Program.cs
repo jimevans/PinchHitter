@@ -11,7 +11,7 @@ authHandler.AddAuthenticator(new BasicWebAuthenticator("myUser", "myPassword"));
 server.RegisterHandler("/auth", authHandler);
 
 server.RegisterHandler("/form.html", new WebResourceRequestHandler(WebContent.AsHtmlDocument(@"<form action=""/process"" method=""post""><input name=""name"" /><input type=""submit"" value=""Send form"" /></form>")));
-server.RegisterHandler("/process", PinchHitter.HttpMethod.Post, new WebResourceRequestHandler(WebContent.AsHtmlDocument("Done")));
+server.RegisterHandler("/process", PinchHitter.HttpRequestMethod.Post, new WebResourceRequestHandler(WebContent.AsHtmlDocument("Done")));
 
 server.Start();
 Console.WriteLine($"Serving pages at http://localhost:{server.Port}.");

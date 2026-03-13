@@ -11,7 +11,7 @@ public class MethodNotAllowedRequestHandlerTests
     {
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent:Test User Agent\r\n\r\n", out HttpRequest request);
         MethodNotAllowedRequestHandler handler = new("Method Not Allowed");
-        HttpResponse response = await handler.HandleRequestAsync("connectionId", request, new List<HttpMethod>() { HttpMethod.Post, HttpMethod.Delete });
+        HttpResponse response = await handler.HandleRequestAsync("connectionId", request, new List<HttpRequestMethod>() { HttpRequestMethod.Post, HttpRequestMethod.Delete });
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.MethodNotAllowed));
@@ -43,6 +43,6 @@ public class MethodNotAllowedRequestHandlerTests
     {
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent:Test User Agent\r\n\r\n", out HttpRequest request);
         MethodNotAllowedRequestHandler handler = new("Method Not Allowed");
-        Assert.That(async () => await handler.HandleRequestAsync("connectionId", request, new List<HttpMethod>()), Throws.InstanceOf<ArgumentException>().With.Message.Contains("List of HttpMethod values most contain at least one entry."));
+        Assert.That(async () => await handler.HandleRequestAsync("connectionId", request, new List<HttpRequestMethod>()), Throws.InstanceOf<ArgumentException>().With.Message.Contains("List of HttpMethod values must contain at least one entry."));
     }
 }

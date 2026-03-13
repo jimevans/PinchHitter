@@ -41,7 +41,8 @@ public class WebSocketHandshakeRequestHandler : HttpRequestHandler
         // 3. Compute SHA-1 and Base64 hash of the new value
         // 4. Write the hash back as the value of "Sec-WebSocket-Accept" response header in an HTTP response
         byte[] websocketSecureResponseBytes = Encoding.UTF8.GetBytes($"{websocketSecureKey.Trim()}{WebSocketGuid}");
-        byte[] websocketResponseHash = SHA1.Create().ComputeHash(websocketSecureResponseBytes);
+        using SHA1 shaHashComputer = SHA1.Create();
+        byte[] websocketResponseHash = shaHashComputer.ComputeHash(websocketSecureResponseBytes);
         string websocketAcceptResponseHash = Convert.ToBase64String(websocketResponseHash);
 
         HttpResponse response = this.CreateHttpResponse(request.Id, HttpStatusCode.SwitchingProtocols);

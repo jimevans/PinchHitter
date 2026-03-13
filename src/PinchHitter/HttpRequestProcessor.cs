@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 /// </summary>
 public class HttpRequestProcessor
 {
-    private readonly Dictionary<string, Dictionary<HttpMethod, HttpRequestHandler>> handlers = new();
+    private readonly Dictionary<string, Dictionary<HttpRequestMethod, HttpRequestHandler>> handlers = new();
     private readonly NotFoundRequestHandler notFoundHandler = new(WebContent.AsHtmlDocument("<h1>404 Not Found</h1><div>The requested resource was not found</div>"));
     private readonly BadRequestHandler invalidRequestHandler = new(WebContent.AsHtmlDocument("<h1>400 Invalid Request</h1><div>The authorization request was incorrect</div>"));
     private readonly MethodNotAllowedRequestHandler methodNotAllowedHandler = new(WebContent.AsHtmlDocument("<h1>405 Method Not Allowed</h1><div>The requested URL does not support the requested method</div>"));
@@ -62,7 +62,7 @@ public class HttpRequestProcessor
     /// <param name="handler">The handler to register.</param>
     public virtual void RegisterHandler(string url, HttpRequestHandler handler)
     {
-        this.RegisterHandler(url, HttpMethod.Get, handler);
+        this.RegisterHandler(url, HttpRequestMethod.Get, handler);
     }
 
     /// <summary>
@@ -71,11 +71,11 @@ public class HttpRequestProcessor
     /// <param name="url">The URL, relative from the root, for which the handler handles requests.</param>
     /// <param name="method">The HTTP method for which the handler handles requests.</param>
     /// <param name="handler">The handler to register.</param>
-    public virtual void RegisterHandler(string url, HttpMethod method, HttpRequestHandler handler)
+    public virtual void RegisterHandler(string url, HttpRequestMethod method, HttpRequestHandler handler)
     {
         if (!this.handlers.ContainsKey(url))
         {
-            this.handlers[url] = new Dictionary<HttpMethod, HttpRequestHandler>();
+            this.handlers[url] = new Dictionary<HttpRequestMethod, HttpRequestHandler>();
         }
 
         this.handlers[url][method] = handler;
