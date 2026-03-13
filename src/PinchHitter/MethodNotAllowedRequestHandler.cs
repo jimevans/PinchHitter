@@ -16,7 +16,7 @@ public class MethodNotAllowedRequestHandler : HttpRequestHandler
     /// <summary>
     /// Initializes a new instance of the <see cref="MethodNotAllowedRequestHandler"/> class.
     /// </summary>
-    /// <param name="content">The content of the Not Found page to be served.</param>
+    /// <param name="content">The content of the Method Not Allowed page to be served.</param>
     public MethodNotAllowedRequestHandler(string content)
         : base(Encoding.UTF8.GetBytes(content))
     {

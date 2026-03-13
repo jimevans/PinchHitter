@@ -13,17 +13,47 @@ using System.Text;
 /// </summary>
 public class HttpResponse
 {
+    /// <summary>
+    /// A mapping of HTTP status codes to their reason phrases. This is not an
+    /// exhaustive list of all HTTP status codes, but it includes the most
+    /// common ones.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The reason phrases for HTTP status codes are not standardized and can vary
+    /// between different implementations. The reason phrases included in this
+    /// mapping are based on the most commonly used ones, but they may not be
+    /// the same as the reason phrases used by other implementations.
+    /// </para>
+    /// <para>
+    /// We maintain this list here, because the System.Net.HttpStatusDescription
+    /// class is not available in .NET Standard 2.0, which is the target framework
+    /// for this library. Likewies, we omit values in the HttpStatusCode enum that
+    /// are not present in .NET Standard 2.0. Notable status code omissions include:
+    /// <list>
+    ///   <item>308 Permanent Redirect</item>
+    ///   <item>422 Unprocessable Entity</item>
+    ///   <item>429 Too Many Requests</item>
+    /// </list>
+    /// </para>
+    /// </remarks>
     private static readonly Dictionary<HttpStatusCode, string> ReasonPhrases = new()
     {
-        { HttpStatusCode.SwitchingProtocols, "Switching Protocols" },
+        { HttpStatusCode.SwitchingProtocols,  "Switching Protocols" },
         { HttpStatusCode.OK, "OK" },
+        { HttpStatusCode.Created, "Created" },
+        { HttpStatusCode.NoContent, "No Content" },
+        { HttpStatusCode.Found, "Found" },
+        { HttpStatusCode.TemporaryRedirect, "Temporary Redirect" },
         { HttpStatusCode.MovedPermanently, "Moved Permanently" },
         { HttpStatusCode.BadRequest, "Bad Request" },
         { HttpStatusCode.Unauthorized, "Unauthorized" },
         { HttpStatusCode.Forbidden, "Forbidden" },
         { HttpStatusCode.NotFound, "Not Found" },
         { HttpStatusCode.MethodNotAllowed, "Method Not Allowed" },
+        { HttpStatusCode.Conflict, "Conflict" },
         { HttpStatusCode.InternalServerError, "Internal Server Error" },
+        { HttpStatusCode.ServiceUnavailable, "Service Unavailable" },
     };
 
     private readonly string requestId;

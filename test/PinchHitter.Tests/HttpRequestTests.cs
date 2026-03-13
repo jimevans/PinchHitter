@@ -11,7 +11,7 @@ public class HttpRequestTests
         {
             Assert.That(request.HttpVersion, Is.EqualTo("HTTP/1.1"));
             Assert.That(request.Method, Is.EqualTo(HttpRequestMethod.Get));
-            Assert.That(request.Uri.AbsolutePath, Is.EqualTo("/"));
+            Assert.That(request.Uri!.AbsolutePath, Is.EqualTo("/"));
             Assert.That(request.Headers, Has.Count.EqualTo(2));
             Assert.That(request.Headers, Contains.Key("Host"));
             Assert.That(request.Headers["Host"], Has.Count.EqualTo(1));
@@ -32,7 +32,7 @@ public class HttpRequestTests
         {
             Assert.That(request.HttpVersion, Is.EqualTo("HTTP/1.1"));
             Assert.That(request.Method, Is.EqualTo(HttpRequestMethod.Get));
-            Assert.That(request.Uri.AbsolutePath, Is.EqualTo("/"));
+            Assert.That(request.Uri!.AbsolutePath, Is.EqualTo("/"));
             Assert.That(request.Headers, Has.Count.EqualTo(2));
             Assert.That(request.Headers, Contains.Key("Host"));
             Assert.That(request.Headers["Host"], Has.Count.EqualTo(1));
@@ -53,7 +53,7 @@ public class HttpRequestTests
         {
             Assert.That(request.HttpVersion, Is.EqualTo("HTTP/1.1"));
             Assert.That(request.Method, Is.EqualTo(HttpRequestMethod.Get));
-            Assert.That(request.Uri.AbsolutePath, Is.EqualTo("/"));
+            Assert.That(request.Uri!.AbsolutePath, Is.EqualTo("/"));
             Assert.That(request.Headers, Has.Count.EqualTo(2));
             Assert.That(request.Headers, Contains.Key("Host"));
             Assert.That(request.Headers["Host"], Has.Count.EqualTo(1));
@@ -74,7 +74,7 @@ public class HttpRequestTests
         {
             Assert.That(request.HttpVersion, Is.EqualTo("HTTP/1.1"));
             Assert.That(request.Method, Is.EqualTo(HttpRequestMethod.Get));
-            Assert.That(request.Uri.AbsolutePath, Is.EqualTo("/"));
+            Assert.That(request.Uri!.AbsolutePath, Is.EqualTo("/"));
             Assert.That(request.Body, Is.EqualTo("Hello world\nAnd good day"));
         });
     }

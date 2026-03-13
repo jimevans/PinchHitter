@@ -16,7 +16,7 @@ public class WebSocketHandshakeRequestHandler : HttpRequestHandler
 {
     // A special GUID used in the WebSocket handshake for upgrading an HTTP
     // connection to use the WebSocket protocol. Specified by RFC 6455.
-    private static readonly string WebSocketGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+    private const string WebSocketGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WebSocketHandshakeRequestHandler"/> class.

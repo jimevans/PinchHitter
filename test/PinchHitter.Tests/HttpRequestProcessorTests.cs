@@ -29,7 +29,7 @@ public class HttpRequestProcessorTests
                 Assert.That(e.RequestId, Is.Not.Empty);
                 Assert.That(e.HttpVersion, Is.EqualTo("HTTP/1.1"));
                 Assert.That(e.Method, Is.EqualTo(HttpRequestMethod.Get));
-                Assert.That(e.Uri.ToString(), Is.EqualTo("http://example.com/"));
+                Assert.That(e.Uri!.ToString(), Is.EqualTo("http://example.com/"));
                 Assert.That(e.Headers, Has.Count.EqualTo(1));
                 Assert.That(e.Headers, Contains.Key("Host"));
                 Assert.That(e.Body, Is.Empty);

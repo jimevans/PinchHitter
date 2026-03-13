@@ -26,7 +26,7 @@ public enum WebSocketOpcodeType
     Binary = 2,
 
     /// <summary>
-    /// Denotes a closed connection.
+    /// Denotes a connection close frame.
     /// </summary>
     Close = 8,
 

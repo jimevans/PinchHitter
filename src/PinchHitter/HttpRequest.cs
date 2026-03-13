@@ -13,6 +13,7 @@ using System.Text.RegularExpressions;
 /// </summary>
 public class HttpRequest
 {
+    private static readonly Regex NavigationLineRegex = new(@"(.*)\s+(.*)\s+(.*)");
     private readonly string requestId = Guid.NewGuid().ToString();
     private readonly Dictionary<string, List<string>> headers = new(StringComparer.OrdinalIgnoreCase);
     private HttpRequestMethod method = HttpRequestMethod.Get;
@@ -37,7 +38,7 @@ public class HttpRequest
     /// <summary>
     /// Gets the URI of this HTTP request.
     /// </summary>
-    public Uri Uri => this.uri!;
+    public Uri? Uri => this.uri;
 
     /// <summary>
     /// Gets the HTTP version of this HTTP request.
@@ -80,14 +81,13 @@ public class HttpRequest
         int currentLine = 0;
 
         string navigationLine = requestLines[currentLine];
-        Regex navigationRegex = new(@"(.*)\s+(.*)\s+(.*)");
-        if (!navigationRegex.IsMatch(navigationLine))
+        if (!NavigationLineRegex.IsMatch(navigationLine))
         {
             parsedRequest = result;
             return false;
         }
 
-        Match match = navigationRegex.Match(navigationLine);
+        Match match = NavigationLineRegex.Match(navigationLine);
         string method = match.Groups[1].Value;
         string relativeUrl = match.Groups[2].Value;
         result.httpVersion = match.Groups[3].Value;
