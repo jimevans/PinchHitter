@@ -15,6 +15,7 @@ using System.Threading.Tasks;
 /// </summary>
 internal class ClientConnection
 {
+    private readonly object stateLock = new();
     private readonly CancellationTokenSource cancellationTokenSource = new();
     private readonly Socket clientSocket;
     private readonly string connectionId = Guid.NewGuid().ToString();
@@ -89,6 +90,25 @@ internal class ClientConnection
     /// </summary>
     internal Task DataReceivedTask => this.receiveDataTask;
 
+    private WebSocketState State
+    {
+        get
+        {
+            lock (this.stateLock)
+            {
+                return this.state;
+            }
+        }
+
+        set
+        {
+            lock (this.stateLock)
+            {
+                this.state = value;
+            }
+        }
+    }
+
     /// <summary>
     /// Starts receiving data on this client connection.
     /// </summary>
@@ -112,15 +132,15 @@ internal class ClientConnection
     /// <returns>The task object representing the asynchronous operation.</returns>
     public async Task DisconnectAsync()
     {
-        if (this.state == WebSocketState.None)
+        if (this.State == WebSocketState.None)
         {
             this.cancellationTokenSource.Cancel();
         }
 
-        if (this.state == WebSocketState.Open)
+        if (this.State == WebSocketState.Open)
         {
             await this.SendCloseFrameAsync("Initiating close").ConfigureAwait(false);
-            this.state = WebSocketState.CloseSent;
+            this.State = WebSocketState.CloseSent;
         }
     }
 
@@ -146,7 +166,7 @@ internal class ClientConnection
         await this.onStartingEvent.NotifyObserversAsync(new ClientConnectionEventArgs(this.connectionId)).ConfigureAwait(false);
         try
         {
-            while (this.state != WebSocketState.Closed)
+            while (this.State != WebSocketState.Closed)
             {
                 // In .NETStandard 2.1, we could use a NetworkStream to wrap the
                 // socket and call ReadAsync(), which is awaitable to read the
@@ -181,7 +201,7 @@ internal class ClientConnection
     private async Task ProcessIncomingDataAsync(byte[] buffer, int receivedLength)
     {
         await this.onLogMessageEvent.NotifyObserversAsync(new ClientConnectionLogMessageEventArgs($"RECV {receivedLength} bytes")).ConfigureAwait(false);
-        if (this.state == WebSocketState.None)
+        if (this.State == WebSocketState.None)
         {
             // A WebSocket connection has not yet been established. Treat the
             // incoming data as a standard HTTP request. If the HTTP request
@@ -193,14 +213,14 @@ internal class ClientConnection
             HttpResponse response = await this.httpProcessor.ProcessRequestAsync(this.connectionId, request).ConfigureAwait(false);
             if (request.IsWebSocketHandshakeRequest)
             {
-                this.state = WebSocketState.Connecting;
+                this.State = WebSocketState.Connecting;
             }
 
             await this.SendDataAsync(response.ToByteArray()).ConfigureAwait(false);
 
             if (request.IsWebSocketHandshakeRequest)
             {
-                this.state = WebSocketState.Open;
+                this.State = WebSocketState.Open;
             }
         }
         else
@@ -221,11 +241,11 @@ internal class ClientConnection
             {
                 if (!this.IgnoreCloseRequest)
                 {
-                    this.state = WebSocketState.CloseReceived;
+                    this.State = WebSocketState.CloseReceived;
                     await this.SendCloseFrameAsync("Acknowledge close").ConfigureAwait(false);
                 }
 
-                this.state = WebSocketState.Closed;
+                this.State = WebSocketState.Closed;
             }
         }
     }
