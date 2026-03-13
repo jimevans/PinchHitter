@@ -566,9 +566,7 @@ public class ServerTests
 
         string data = new('a', dataLength);
         await server.SendDataAsync(connectionId, data);
-        bool receiveTaskCompleted = receiveTask.Wait(TimeSpan.FromSeconds(5));
-        Assert.That(receiveTaskCompleted, Is.True);
-        WebSocketReceiveResult result = receiveTask.Result;
+        WebSocketReceiveResult result = await receiveTask.WaitAsync(TimeSpan.FromSeconds(5));
         string receivedData = Encoding.UTF8.GetString(buffer.Array!, 0, result.Count);
 
         Assert.Multiple(() =>
