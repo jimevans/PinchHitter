@@ -35,7 +35,7 @@ public class ClientConnection
     /// <param name="clientSocket">The Socket used to communicate with the client.</param>
     /// <param name="httpProcessor">An HttpRequestProcessor used to process HTTP requests.</param>
     /// <param name="bufferSize">The size of the buffer used for socket communication.</param>
-    public ClientConnection(Socket clientSocket, HttpRequestProcessor httpProcessor, int bufferSize = 1024)
+    internal ClientConnection(Socket clientSocket, HttpRequestProcessor httpProcessor, int bufferSize = 1024)
     {
         this.clientSocket = clientSocket;
         this.bufferSize = bufferSize;

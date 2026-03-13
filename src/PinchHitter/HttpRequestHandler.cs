@@ -22,7 +22,7 @@ public abstract class HttpRequestHandler
     /// Initializes a new instance of the <see cref="HttpRequestHandler"/> class with a byte array.
     /// </summary>
     /// <param name="data">A byte array representing the data of this handler to be served.</param>
-    public HttpRequestHandler(byte[] data)
+    protected HttpRequestHandler(byte[] data)
     {
         this.data = data;
     }
@@ -94,7 +94,7 @@ public abstract class HttpRequestHandler
     protected void AddStandardResponseHeaders(HttpResponse response)
     {
         response.Headers["Connection"] = new List<string>() { "keep-alive" };
-        response.Headers["Server"] = new List<string>() { "PinchHitter/0.1 .NET/6.0" };
+        response.Headers["Server"] = new List<string>() { "PinchHitter/0.1 .NETStandard/2.0" };
         response.Headers["Date"] = new List<string>() { DateTime.UtcNow.ToString("ddd, dd MMM yyy HH:mm:ss GMT") };
         response.Headers["Content-Type"] = new List<string>() { this.mimeType };
         response.Headers["Content-Length"] = new List<string>() { response.BodyContent.Length.ToString() };

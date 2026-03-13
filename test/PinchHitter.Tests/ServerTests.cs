@@ -121,19 +121,26 @@ public class ServerTests
     [Test]
     public void TestShutdownWithoutReceivingRequest()
     {
-        this.server!.Stop();
+        Assert.That(() => this.server!.Stop(), Throws.Nothing);
+    }
+
+    [Test]
+    public async Task TestCanStartAsync()
+    {
+        await using Server localServer = new();
+        Assert.That(async () => await localServer.StartAsync(), Throws.Nothing);
     }
 
     [Test]
     public void TestCanDispose()
     {
-        this.server!.Dispose();
+        Assert.That(() => this.server!.Dispose(), Throws.Nothing);
     }
 
     [Test]
     public async Task TestCanDisposeAsync()
     {
-        await this.server!.DisposeAsync();
+        Assert.That(async () => await this.server!.DisposeAsync(), Throws.Nothing);
     }
 
     [Test]

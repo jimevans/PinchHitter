@@ -100,6 +100,16 @@ public class Server : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
+    /// Asynchronously starts the server listening for incoming connections.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    public Task StartAsync()
+    {
+        this.Start();
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
     /// Starts the server listening for incoming connections.
     /// </summary>
     public void Start()

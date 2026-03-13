@@ -22,6 +22,7 @@ public class HttpResponse
         { HttpStatusCode.Unauthorized, "Unauthorized" },
         { HttpStatusCode.Forbidden, "Forbidden" },
         { HttpStatusCode.NotFound, "Not Found" },
+        { HttpStatusCode.MethodNotAllowed, "Method Not Allowed" },
         { HttpStatusCode.InternalServerError, "Internal Server Error" },
     };
 

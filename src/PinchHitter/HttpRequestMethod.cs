@@ -49,4 +49,9 @@ public enum HttpRequestMethod
     /// The HTTP CONNECT method.
     /// </summary>
     Connect,
+
+    /// <summary>
+    /// The HTTP PATCH method.
+    /// </summary>
+    Patch,
 }
