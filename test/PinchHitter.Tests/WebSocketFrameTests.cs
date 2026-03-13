@@ -183,8 +183,8 @@ public class WebSocketFrameTests
         else if (payload.Length >= 126)
         {
             frame.Add(0xFE); // MASK=1, length indicator = 126
-            byte[] lenBytes = new byte[sizeof(short)];
-            BinaryPrimitives.WriteInt16BigEndian(lenBytes, (short)payload.Length);
+            byte[] lenBytes = new byte[sizeof(ushort)];
+            BinaryPrimitives.WriteUInt16BigEndian(lenBytes, (ushort)payload.Length);
             frame.AddRange(lenBytes);
         }
         else
