@@ -8,7 +8,7 @@ namespace PinchHitter;
 /// <summary>
 /// Object containing event data for events raised when a message is logged by a client connection to the PinchHitter server.
 /// </summary>
-public class ClientConnectionLogMessageEventArgs : EventArgs
+internal class ClientConnectionLogMessageEventArgs : EventArgs
 {
     private readonly string message;
 
