@@ -146,7 +146,7 @@ public class HttpRequest
         {
             if (bodyBuilder.Length > 0)
             {
-                // Need platform indepentdent newlines in the body.
+                // Need platform independent newlines in the body.
                 bodyBuilder.Append("\n");
             }
 

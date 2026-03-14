@@ -159,7 +159,7 @@ public class Server : IAsyncDisposable
         await Task.WhenAll(tasks.Select(t => t.ContinueWith(_ => { }, TaskScheduler.Default))).ConfigureAwait(false);
 
         // Also swallow any OperationCanceledException that may be thrown by the
-        // main accept loop, and prevent UnobservedTaskException crashes due t
+        // main accept loop, and prevent UnobservedTaskException crashes due to
         // that expected exception.
         await this.acceptConnectionsTask.ContinueWith(_ => { }, TaskScheduler.Default).ConfigureAwait(false);
     }

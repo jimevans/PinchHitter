@@ -119,7 +119,7 @@ internal class ClientConnection
 
     /// <summary>
     /// Stops receiving data on this client connection. Synchronizing with the
-    /// completion of the receiving task is the responsibilty of the consumer.
+    /// completion of the receiving task is the responsibility of the consumer.
     /// </summary>
     public void StopReceiving()
     {
