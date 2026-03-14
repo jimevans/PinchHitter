@@ -34,19 +34,19 @@ public class HttpRequestProcessor
             }
             else
             {
-                if (!this.handlers.ContainsKey(request.Uri.AbsolutePath))
+                if (!this.handlers.TryGetValue(request.Uri.AbsolutePath, out ConcurrentDictionary<HttpRequestMethod, HttpRequestHandler> urlHandlers))
                 {
                     return await this.notFoundHandler.HandleRequestAsync(connectionId, request).ConfigureAwait(false);
                 }
                 else
                 {
-                    if (!this.handlers[request.Uri.AbsolutePath].ContainsKey(request.Method))
+                    if (!urlHandlers.TryGetValue(request.Method, out HttpRequestHandler handler))
                     {
-                        return await new MethodNotAllowedRequestHandler("<h1>405 Method Not Allowed</h1><div>The requested URL does not support the requested method</div>", [.. this.handlers[request.Uri.AbsolutePath].Keys]).HandleRequestAsync(connectionId, request).ConfigureAwait(false);
+                        return await new MethodNotAllowedRequestHandler("<h1>405 Method Not Allowed</h1><div>The requested URL does not support the requested method</div>", [.. urlHandlers.Keys]).HandleRequestAsync(connectionId, request).ConfigureAwait(false);
                     }
                     else
                     {
-                        return await this.handlers[request.Uri.AbsolutePath][request.Method].HandleRequestAsync(connectionId, request).ConfigureAwait(false);
+                        return await handler.HandleRequestAsync(connectionId, request).ConfigureAwait(false);
                     }
                 }
             }
