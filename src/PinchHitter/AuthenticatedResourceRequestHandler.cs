@@ -44,9 +44,8 @@ public class AuthenticatedResourceRequestHandler : WebResourceRequestHandler
     /// Handles an HTTP request requiring authentication.
     /// </summary>
     /// <param name="request">The HTTP request to handle.</param>
-    /// <param name="additionalData">Additional data passed into the method for handling requests.</param>
     /// <returns>The response to the HTTP request.</returns>
-    protected override async Task<HttpResponse> ProcessRequestAsync(HttpRequest request, params object[] additionalData)
+    protected override async Task<HttpResponse> ProcessRequestAsync(HttpRequest request)
     {
         HttpResponse responseData;
         if (!request.Headers.ContainsKey("Authorization"))

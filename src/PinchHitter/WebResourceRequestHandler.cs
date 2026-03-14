@@ -35,9 +35,8 @@ public class WebResourceRequestHandler : HttpRequestHandler
     /// Process an HTTP request where the requested resource is valid and successfully returned.
     /// </summary>
     /// <param name="request">The HttpRequest object representing the request.</param>
-    /// <param name="additionalData">Additional data passed into the method for handling requests.</param>
     /// <returns>An HttpResponse object representing the response.</returns>
-    protected override Task<HttpResponse> ProcessRequestAsync(HttpRequest request, params object[] additionalData)
+    protected override Task<HttpResponse> ProcessRequestAsync(HttpRequest request)
     {
         return Task.FromResult<HttpResponse>(this.CreateHttpResponse(request.Id, HttpStatusCode.OK));
     }

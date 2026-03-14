@@ -11,8 +11,8 @@ public class MethodNotAllowedRequestHandlerTests
     public async Task TestHandlerReturnsMethodNotAllowedResponse()
     {
         _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent:Test User Agent\r\n\r\n", out HttpRequest request);
-        MethodNotAllowedRequestHandler handler = new("Method Not Allowed");
-        HttpResponse response = await handler.HandleRequestAsync("connectionId", request, new List<HttpRequestMethod>() { HttpRequestMethod.Post, HttpRequestMethod.Delete });
+        MethodNotAllowedRequestHandler handler = new("Method Not Allowed", [HttpRequestMethod.Post, HttpRequestMethod.Delete]);
+        HttpResponse response = await handler.HandleRequestAsync("connectionId", request);
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.MethodNotAllowed));
@@ -27,24 +27,12 @@ public class MethodNotAllowedRequestHandlerTests
     [Test]
     public void TestHandlerWithoutValidMethodListThrows()
     {
-        _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent:Test User Agent\r\n\r\n", out HttpRequest request);
-        MethodNotAllowedRequestHandler handler = new("Method Not Allowed");
-        Assert.That(async () => await handler.HandleRequestAsync("connectionId", request), Throws.InstanceOf<ArgumentException>().With.Message.Contains("Request handler requires list of valid methods."));
-    }
-
-    [Test]
-    public void TestHandlerWithInvalidParameterTypeThrows()
-    {
-        _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent:Test User Agent\r\n\r\n", out HttpRequest request);
-        MethodNotAllowedRequestHandler handler = new("Method Not Allowed");
-        Assert.That(async () => await handler.HandleRequestAsync("connectionId", request, "foo"), Throws.InstanceOf<ArgumentException>().With.Message.Contains("Additional data must be a list of HttpMethod values."));
+        Assert.That(() => { MethodNotAllowedRequestHandler handler = new("Method Not Allowed", null!); }, Throws.InstanceOf<ArgumentException>().With.Message.Contains("Request handler requires list of valid methods."));
     }
 
     [Test]
     public void TestHandlerWithEmptyMethodListThrows()
     {
-        _ = HttpRequest.TryParse("GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent:Test User Agent\r\n\r\n", out HttpRequest request);
-        MethodNotAllowedRequestHandler handler = new("Method Not Allowed");
-        Assert.That(async () => await handler.HandleRequestAsync("connectionId", request, new List<HttpRequestMethod>()), Throws.InstanceOf<ArgumentException>().With.Message.Contains("List of HttpMethod values must contain at least one entry."));
+        Assert.That(() => { MethodNotAllowedRequestHandler handler = new("Method Not Allowed", new List<HttpRequestMethod>()); }, Throws.InstanceOf<ArgumentException>().With.Message.Contains("List of HttpMethod values must contain at least one entry."));
     }
 }

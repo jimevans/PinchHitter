@@ -30,9 +30,8 @@ public class WebSocketHandshakeRequestHandler : HttpRequestHandler
     /// Handles an HTTP request to upgrade the connection to use a WebSocket.
     /// </summary>
     /// <param name="request">The HTTP request to handle.</param>
-    /// <param name="additionalData">Additional data passed into the method for handling requests.</param>
     /// <returns>The response to the HTTP request.</returns>
-    protected override Task<HttpResponse> ProcessRequestAsync(HttpRequest request, params object[] additionalData)
+    protected override Task<HttpResponse> ProcessRequestAsync(HttpRequest request)
     {
         string websocketSecureKey = request.Headers["Sec-WebSocket-Key"][0];
 

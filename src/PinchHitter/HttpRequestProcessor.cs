@@ -17,7 +17,6 @@ public class HttpRequestProcessor
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<HttpRequestMethod, HttpRequestHandler>> handlers = new();
     private readonly NotFoundRequestHandler notFoundHandler = new(WebContent.AsHtmlDocument("<h1>404 Not Found</h1><div>The requested resource was not found</div>"));
     private readonly BadRequestHandler invalidRequestHandler = new(WebContent.AsHtmlDocument("<h1>400 Invalid Request</h1><div>The authorization request was incorrect</div>"));
-    private readonly MethodNotAllowedRequestHandler methodNotAllowedHandler = new(WebContent.AsHtmlDocument("<h1>405 Method Not Allowed</h1><div>The requested URL does not support the requested method</div>"));
 
     /// <summary>
     /// Process an HTTP request, returning a response.
@@ -43,7 +42,7 @@ public class HttpRequestProcessor
                 {
                     if (!this.handlers[request.Uri.AbsolutePath].ContainsKey(request.Method))
                     {
-                        return await this.methodNotAllowedHandler.HandleRequestAsync(connectionId, request, this.handlers[request.Uri.AbsolutePath].Keys.ToList()).ConfigureAwait(false);
+                        return await new MethodNotAllowedRequestHandler("<h1>405 Method Not Allowed</h1><div>The requested URL does not support the requested method</div>", [.. this.handlers[request.Uri.AbsolutePath].Keys]).HandleRequestAsync(connectionId, request).ConfigureAwait(false);
                     }
                     else
                     {

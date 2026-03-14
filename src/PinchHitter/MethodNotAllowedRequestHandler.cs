@@ -6,6 +6,7 @@
 namespace PinchHitter;
 
 using System.Net;
+using System.Reflection;
 using System.Text;
 
 /// <summary>
@@ -13,51 +14,38 @@ using System.Text;
 /// </summary>
 public class MethodNotAllowedRequestHandler : HttpRequestHandler
 {
+    private readonly List<HttpRequestMethod> allowedMethods;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="MethodNotAllowedRequestHandler"/> class.
     /// </summary>
     /// <param name="content">The content of the Method Not Allowed page to be served.</param>
-    public MethodNotAllowedRequestHandler(string content)
+    /// <param name="allowedMethods">A list of HTTP methods allowed for the requested URL.</param>
+    /// <exception cref="ArgumentException">Thrown when the list of allowed methods is null or empty.</exception>
+    public MethodNotAllowedRequestHandler(string content, List<HttpRequestMethod> allowedMethods)
         : base(Encoding.UTF8.GetBytes(content))
     {
-    }
+        if (allowedMethods is null)
+        {
+            throw new ArgumentException("Request handler requires list of valid methods.", nameof(allowedMethods));
+        }
 
-    /// <summary>
-    /// Handles an HTTP request.
-    /// </summary>
-    /// <param name="connectionId">The connection from which the HTTP request to be handled was received.</param>
-    /// <param name="request">The HTTP request to handle.</param>
-    /// <param name="verbsAllowedForUrl">A list of HTTP methods allowed for the requested URL.</param>
-    /// <returns>The response to the HTTP request.</returns>
-    public Task<HttpResponse> HandleRequestAsync(string connectionId, HttpRequest request, List<HttpRequestMethod> verbsAllowedForUrl)
-    {
-        return this.HandleRequestAsync(connectionId, request, (object)verbsAllowedForUrl);
+        if (allowedMethods.Count == 0)
+        {
+            throw new ArgumentException("List of HttpMethod values must contain at least one entry.", nameof(allowedMethods));
+        }
+
+        this.allowedMethods = allowedMethods;
     }
 
     /// <summary>
     /// Process an HTTP request where the provided method is not allowed for the URL.
     /// </summary>
     /// <param name="request">The HttpRequest object representing the request.</param>
-    /// <param name="additionalData">Additional data passed into the method for handling requests.</param>
     /// <returns>An HttpResponse object representing the response.</returns>
-    protected override Task<HttpResponse> ProcessRequestAsync(HttpRequest request, params object[] additionalData)
+    protected override Task<HttpResponse> ProcessRequestAsync(HttpRequest request)
     {
-        if (additionalData.Length == 0)
-        {
-            throw new ArgumentException("Request handler requires list of valid methods.", nameof(additionalData));
-        }
-
-        if (additionalData[0] is not List<HttpRequestMethod> validMethods)
-        {
-            throw new ArgumentException("Additional data must be a list of HttpMethod values.", nameof(additionalData));
-        }
-
-        if (validMethods.Count == 0)
-        {
-            throw new ArgumentException("List of HttpMethod values must contain at least one entry.", nameof(additionalData));
-        }
-
-        List<string> methodStrings = validMethods.ConvertAll((x) => x.ToString().ToUpperInvariant());
+        List<string> methodStrings = this.allowedMethods.ConvertAll((x) => x.ToString().ToUpperInvariant());
         methodStrings.Sort();
         HttpResponse responseData = this.CreateHttpResponse(request.Id, HttpStatusCode.MethodNotAllowed);
         responseData.Headers["Allow"] = new List<string>() { string.Join(", ", methodStrings) };

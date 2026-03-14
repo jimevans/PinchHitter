@@ -52,18 +52,11 @@ public abstract class HttpRequestHandler
     /// </summary>
     /// <param name="connectionId">The connection from which the HTTP request to be handled was received.</param>
     /// <param name="request">The HTTP request to handle.</param>
-    /// <param name="additionalData">Additional data passed into the method for handling requests.</param>
     /// <returns>The response to the HTTP request.</returns>
-    /// <remarks>The additionalData parameter is used to pass in any additional
-    /// data that may be needed by the handler for handling the request, such
-    /// as a list of valid HTTP methods for the URL when handling a request
-    /// with an invalid method. It is an extension point for users to be
-    /// able to register handlers that can handle arbitrary types of requests.
-    /// </remarks>
-    public async Task<HttpResponse> HandleRequestAsync(string connectionId, HttpRequest request, params object[] additionalData)
+    public async Task<HttpResponse> HandleRequestAsync(string connectionId, HttpRequest request)
     {
         await this.onRequestHandlingEvent.NotifyObserversAsync(new RequestHandlingEventArgs(connectionId, request)).ConfigureAwait(false);
-        HttpResponse response = await this.ProcessRequestAsync(request, additionalData).ConfigureAwait(false);
+        HttpResponse response = await this.ProcessRequestAsync(request).ConfigureAwait(false);
         await this.onRequestHandledEvent.NotifyObserversAsync(new RequestHandledEventArgs(connectionId, response)).ConfigureAwait(false);
         return response;
     }
@@ -72,15 +65,8 @@ public abstract class HttpRequestHandler
     /// Processes an HTTP request.
     /// </summary>
     /// <param name="request">The HTTP request to handle.</param>
-    /// <param name="additionalData">Additional data passed into the method for handling requests.</param>
     /// <returns>The response to the HTTP request.</returns>
-    /// <remarks>The additionalData parameter is used to pass in any additional
-    /// data that may be needed by the handler for handling the request, such
-    /// as a list of valid HTTP methods for the URL when handling a request
-    /// with an invalid method. It is an extension point for users to be
-    /// able to register handlers that can handle arbitrary types of requests.
-    /// </remarks>
-    protected abstract Task<HttpResponse> ProcessRequestAsync(HttpRequest request, params object[] additionalData);
+    protected abstract Task<HttpResponse> ProcessRequestAsync(HttpRequest request);
 
     /// <summary>
     /// Creates an HttpResponse object from this resource.
