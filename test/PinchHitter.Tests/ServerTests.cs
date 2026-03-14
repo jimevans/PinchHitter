@@ -63,10 +63,12 @@ public class ServerTests
     {
         this.server!.RegisterHandler("/", new WebResourceRequestHandler("hello world"));
 
+        TaskCompletionSource taskCompletionSource = new();
         string connectionId = string.Empty;
         this.server.OnClientConnected.AddObserver((e) =>
         {
             connectionId = e.ConnectionId;
+            taskCompletionSource.SetResult();
         });
 
         string sendData = string.Empty;
@@ -79,6 +81,7 @@ public class ServerTests
 
         using HttpClient client = new();
         HttpResponseMessage responseMessage = await client.GetAsync($"http://localhost:{server.Port}/");
+        await taskCompletionSource.Task;
         string responseContent = await responseMessage.Content.ReadAsStringAsync();
         Assert.That(sentConnectionId, Is.EqualTo(connectionId));
         Assert.That(sendData, Does.StartWith("HTTP/1.1 200 OK"));
