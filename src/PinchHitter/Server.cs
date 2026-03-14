@@ -7,7 +7,6 @@ namespace PinchHitter;
 
 using System;
 using System.Collections.Concurrent;
-using System.ComponentModel;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
@@ -16,7 +15,7 @@ using System.Threading.Tasks;
 /// An abstract base class for a server listening on a port for TCP messages and able
 /// to process incoming data received on that port.
 /// </summary>
-public class Server : IDisposable, IAsyncDisposable
+public class Server : IAsyncDisposable
 {
     private readonly ConcurrentDictionary<string, ClientConnection> activeConnections = new();
     private readonly ConcurrentQueue<string> serverLog = new();
@@ -133,15 +132,6 @@ public class Server : IDisposable, IAsyncDisposable
     /// <returns>A task representing the asynchronous operation.</returns>
     public Task StartAsync()
     {
-        this.Start();
-        return Task.CompletedTask;
-    }
-
-    /// <summary>
-    /// Starts the server listening for incoming connections.
-    /// </summary>
-    public void Start()
-    {
         this.listener.Start();
         IPEndPoint? localEndpoint = this.listener.LocalEndpoint as IPEndPoint;
         if (localEndpoint is not null)
@@ -151,14 +141,7 @@ public class Server : IDisposable, IAsyncDisposable
 
         this.IsAcceptingConnections = true;
         this.acceptConnectionsTask = Task.Run(() => this.AcceptConnectionsAsync());
-    }
-
-    /// <summary>
-    /// Stops the server from listening for incoming connections.
-    /// </summary>
-    public void Stop()
-    {
-        this.CloseConnections();
+        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -255,35 +238,6 @@ public class Server : IDisposable, IAsyncDisposable
         }
 
         connection.IgnoreCloseRequest = ignoreCloseConnectionRequest;
-    }
-
-    /// <summary>
-    /// Releases all resources used by the <see cref="Server"/>.
-    /// </summary>
-    public void Dispose()
-    {
-        this.Dispose(true);
-        GC.SuppressFinalize(this);
-    }
-
-    /// <summary>
-    /// Releases all resources used by the <see cref="Server"/> class.
-    /// </summary>
-    /// <param name="disposing">
-    /// <see langword="true"/> to release both managed and unmanaged resources;
-    /// <see langword="false"/> to release only unmanaged resources.
-    /// </param>
-    /// <remarks>
-    /// <para>Calling this method with <see langword="false"/> will not stop the server from listening for requests or close any active connections, but will still release other resources used by the server.</para>
-    /// <para>Calling this method with <see langword="true"/> will stop the server from listening for requests and close all active connections, in addition to releasing other resources used by the server.</para>
-    /// <para>Calling this method multiple times will not cause an error, but only the first call will have an effect.</para>
-    /// </remarks>
-    protected void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            this.Stop();
-        }
     }
 
     /// <summary>

@@ -12,10 +12,10 @@ public class ServerTests
     private Server? server;
 
     [SetUp]
-    public void Setup()
+    public async Task Setup()
     {
         this.server = new();
-        this.server.Start();
+        await this.server.StartAsync();
     }
 
     [TearDown]
@@ -120,9 +120,9 @@ public class ServerTests
     }
 
     [Test]
-    public void TestShutdownWithoutReceivingRequest()
+    public async Task TestShutdownWithoutReceivingRequest()
     {
-        Assert.That(() => this.server!.Stop(), Throws.Nothing);
+        Assert.That(async () => await this.server!.StopAsync(), Throws.Nothing);
     }
 
     [Test]
@@ -130,12 +130,6 @@ public class ServerTests
     {
         await using Server localServer = new();
         Assert.That(async () => await localServer.StartAsync(), Throws.Nothing);
-    }
-
-    [Test]
-    public void TestCanDispose()
-    {
-        Assert.That(() => this.server!.Dispose(), Throws.Nothing);
     }
 
     [Test]
@@ -176,10 +170,11 @@ public class ServerTests
         // Use OnSocketAccepted to call Stop() before we check IsAcceptingConnections,
         // deterministically exercising the else branch in AcceptConnectionsAsync that
         // closes any socket accepted once isAcceptingConnections is false.
+        Task stopTask;
         ManualResetEventSlim connectionProcessed = new(false);
         this.server!.OnSocketAccepted.AddObserver((e) =>
         {
-            this.server!.Stop();
+            stopTask = this.server!.StopAsync();
             connectionProcessed.Set();
         });
         using TcpClient tcpClient = new();
@@ -833,7 +828,7 @@ public class ServerTests
     }
 
     [Test]
-    public void TestServerStartsOnSpecificPort()
+    public async Task TestServerStartsOnSpecificPort()
     {
         // Find an available port by briefly binding to port 0, then release it
         // before creating the Server so the port number is known in advance.
@@ -848,12 +843,12 @@ public class ServerTests
         Server localServer = new(specificPort);
         try
         {
-            localServer.Start();
+            await localServer.StartAsync();
             Assert.That(localServer.Port, Is.EqualTo(specificPort));
         }
         finally
         {
-            localServer.Stop();
+            await localServer.StopAsync();
         }
     }
 }
