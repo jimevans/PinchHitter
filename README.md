@@ -29,8 +29,8 @@ Server server = new();
 server.Start();
 
 // Register some content to be returned when a URL is browsed.
-server.RegisterResource("/index.html", WebResource.CreateHtmlResource(
-    "<h1>Welcome to the PinchHitter web server</h1><p>You can browse using localhost</p>"));
+server.RegisterHandler("/index.html", new WebResourceRequestHandler(WebContent.AsHtmlDocument(
+    "<h1>Welcome to the PinchHitter web server</h1><p>You can browse using localhost</p>")));
 
 // Browse to the registered URL, and retrieve the content. You can also
 // use a browser to browse to the same URL, and the content will be
@@ -61,7 +61,7 @@ server.Start();
 // this server.
 ManualResetEvent connectionEvent = new(false);
 string connectionId = string.Empty;
-server.OnClientConnected.AddObserver(e) =>
+server.OnClientConnected.AddObserver(e =>
 {
     connectionId = e.ConnectionId;
     connectionEvent.Set();
@@ -108,7 +108,7 @@ Task<WebSocketReceiveResult> clientReceiveTask =
 
 // Send data from the server to the client, and wait for
 // the client receive task to complete.
-await server.SendData(connectionId, "Hello back from the PinchHitter server");
+await server.SendDataAsync(connectionId, "Hello back from the PinchHitter server");
 await clientReceiveTask;
 WebSocketReceiveResult result = clientReceiveTask.Result;
 string dataSentToClient =
