@@ -224,4 +224,32 @@ public class HttpRequestProcessorTests
         HttpResponse response = await processor.ProcessRequestAsync("connectionId", request);
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.SwitchingProtocols));
     }
+
+    [Test]
+    public void TestRegisterHandlerWithNullUrlThrows()
+    {
+        HttpRequestProcessor processor = new();
+        Assert.Throws<ArgumentNullException>(() => processor.RegisterHandler(null!, HttpRequestMethod.Get, new WebResourceRequestHandler("hello")));
+    }
+
+    [Test]
+    public void TestRegisterHandlerWithEmptyUrlThrows()
+    {
+        HttpRequestProcessor processor = new();
+        Assert.Throws<ArgumentException>(() => processor.RegisterHandler(string.Empty, HttpRequestMethod.Get, new WebResourceRequestHandler("hello")));
+    }
+
+    [Test]
+    public void TestRegisterHandlerWithWhitespaceUrlThrows()
+    {
+        HttpRequestProcessor processor = new();
+        Assert.Throws<ArgumentException>(() => processor.RegisterHandler("   ", HttpRequestMethod.Get, new WebResourceRequestHandler("hello")));
+    }
+
+    [Test]
+    public void TestRegisterHandlerWithNullHandlerThrows()
+    {
+        HttpRequestProcessor processor = new();
+        Assert.Throws<ArgumentNullException>(() => processor.RegisterHandler("/test", HttpRequestMethod.Get, null!));
+    }
 }

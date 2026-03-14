@@ -73,6 +73,23 @@ public class HttpRequestProcessor
     /// <param name="handler">The handler to register.</param>
     public virtual void RegisterHandler(string url, HttpRequestMethod method, HttpRequestHandler handler)
     {
-        this.handlers.GetOrAdd(url, _ => new ConcurrentDictionary<HttpRequestMethod, HttpRequestHandler>())[method] = handler;
+        if (url is null)
+        {
+            throw new ArgumentNullException(nameof(url), "URL cannot be null or empty");
+        }
+
+        if (handler is null)
+        {
+            throw new ArgumentNullException(nameof(handler), "Handler cannot be null");
+        }
+
+        // The "url argument is null" case is already handled above.
+        string trimmedUrl = url.Trim();
+        if (string.IsNullOrEmpty(trimmedUrl))
+        {
+            throw new ArgumentException("URL cannot be empty or only contain whitespace", nameof(url));
+        }
+
+        this.handlers.GetOrAdd(trimmedUrl, _ => new ConcurrentDictionary<HttpRequestMethod, HttpRequestHandler>())[method] = handler;
     }
 }
