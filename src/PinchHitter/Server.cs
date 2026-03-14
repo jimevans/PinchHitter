@@ -24,6 +24,7 @@ public class Server : IDisposable, IAsyncDisposable
     private readonly ServerObservableEventSource<ServerDataSentEventArgs> onServerDataSentEvent = new();
     private readonly ServerObservableEventSource<ClientConnectionEventArgs> onClientConnectedEvent = new();
     private readonly ServerObservableEventSource<ClientConnectionEventArgs> onClientDisconnectedEvent = new();
+    private readonly ServerObservableEventSource<EventArgs> onSocketConnectedEvent = new();
     private readonly TcpListener listener;
     private readonly HttpRequestProcessor httpProcessor;
     private int port = 0;
@@ -78,6 +79,11 @@ public class Server : IDisposable, IAsyncDisposable
     /// Gets the event raised when a client disconnects from the server.
     /// </summary>
     public ServerObservableEvent<ClientConnectionEventArgs> OnClientDisconnected => this.onClientDisconnectedEvent;
+
+    /// <summary>
+    /// Gets the event raised when a socket connection is accepted by the server.
+    /// </summary>
+    public ServerObservableEvent<EventArgs> OnSocketAccepted => this.onSocketConnectedEvent;
 
     /// <summary>
     /// Gets the port on which the server is listening for connections.
@@ -304,6 +310,7 @@ public class Server : IDisposable, IAsyncDisposable
         while (true)
         {
             Socket socket = await this.listener.AcceptSocketAsync().ConfigureAwait(false);
+            await this.onSocketConnectedEvent.NotifyObserversAsync(EventArgs.Empty).ConfigureAwait(false);
             if (this.IsAcceptingConnections)
             {
                 ClientConnection clientConnection = new(socket, this.httpProcessor, this.bufferSize);

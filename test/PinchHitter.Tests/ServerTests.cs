@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
+using System.Threading;
 
 [TestFixture]
 public class ServerTests
@@ -172,16 +173,18 @@ public class ServerTests
     [Test]
     public async Task TestServerClosesConnectionAcceptedAfterStop()
     {
-        // Open a raw TCP connection so the OS completes the handshake and queues the
-        // socket in the listener's backlog. Calling Stop() immediately afterwards
-        // exercises the else branch in AcceptConnectionsAsync that closes any socket
-        // accepted once isAcceptingConnections is false.
+        // Use OnSocketAccepted to call Stop() before we check IsAcceptingConnections,
+        // deterministically exercising the else branch in AcceptConnectionsAsync that
+        // closes any socket accepted once isAcceptingConnections is false.
+        ManualResetEventSlim connectionProcessed = new(false);
+        this.server!.OnSocketAccepted.AddObserver((e) =>
+        {
+            this.server!.Stop();
+            connectionProcessed.Set();
+        });
         using TcpClient tcpClient = new();
         await tcpClient.ConnectAsync(IPAddress.Loopback, server!.Port);
-        this.server.Stop();
-
-        // Allow AcceptConnectionsAsync time to dequeue and process the socket.
-        await Task.Delay(100);
+        connectionProcessed.Wait(TimeSpan.FromSeconds(2));
 
         NetworkStream stream = tcpClient.GetStream();
         byte[] buffer = new byte[1];
@@ -199,7 +202,7 @@ public class ServerTests
         {
             // ReadTimeout does not apply to ReadAsync; the CancellationToken above is the
             // correct mechanism. A timeout here means the else branch in AcceptConnectionsAsync
-            // did not fire due to a race — not a test failure.
+            // did not fire — this should not occur with the deterministic callback approach.
         }
 
         Assert.That(bytesRead, Is.Zero);
