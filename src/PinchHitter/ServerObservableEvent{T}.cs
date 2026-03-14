@@ -126,21 +126,21 @@ public class ServerObservableEvent<T>
     }
 
     /// <summary>
-    /// Removes a handler for this observable event.
-    /// </summary>
-    /// <param name="observerId">The ID of the handler handling the event.</param>
-    public void RemoveObserver(string observerId)
-    {
-        this.observers.TryRemove(observerId, out _);
-    }
-
-    /// <summary>
     /// Returns a string that represents the current object.
     /// </summary>
     /// <returns>A string that represents the current object.</returns>
     public override string ToString()
     {
         return $"ServerObservableEvent<{typeof(T).Name}> with observers:\n    {string.Join("\n    ", this.observers.Values)}";
+    }
+
+    /// <summary>
+    /// Removes a handler for this observable event.
+    /// </summary>
+    /// <param name="observerId">The ID of the handler handling the event.</param>
+    internal void RemoveObserver(string observerId)
+    {
+        this.observers.TryRemove(observerId, out _);
     }
 
     /// <summary>
