@@ -21,13 +21,14 @@ public class MethodNotAllowedRequestHandler : HttpRequestHandler
     /// </summary>
     /// <param name="content">The content of the Method Not Allowed page to be served.</param>
     /// <param name="allowedMethods">A list of HTTP methods allowed for the requested URL.</param>
-    /// <exception cref="ArgumentException">Thrown when the list of allowed methods is null or empty.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when the list of allowed methods is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when the list of allowed methods is empty.</exception>
     public MethodNotAllowedRequestHandler(string content, List<HttpRequestMethod> allowedMethods)
         : base(Encoding.UTF8.GetBytes(content))
     {
         if (allowedMethods is null)
         {
-            throw new ArgumentException("Request handler requires list of valid methods.", nameof(allowedMethods));
+            throw new ArgumentNullException("Request handler requires list of valid methods.", nameof(allowedMethods));
         }
 
         if (allowedMethods.Count == 0)

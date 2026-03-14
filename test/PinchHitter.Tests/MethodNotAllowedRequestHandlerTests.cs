@@ -27,7 +27,7 @@ public class MethodNotAllowedRequestHandlerTests
     [Test]
     public void TestHandlerWithoutValidMethodListThrows()
     {
-        Assert.That(() => { MethodNotAllowedRequestHandler handler = new("Method Not Allowed", null!); }, Throws.InstanceOf<ArgumentException>().With.Message.Contains("Request handler requires list of valid methods."));
+        Assert.That(() => { MethodNotAllowedRequestHandler handler = new("Method Not Allowed", null!); }, Throws.InstanceOf<ArgumentNullException>().With.Message.Contains("Request handler requires list of valid methods."));
     }
 
     [Test]
