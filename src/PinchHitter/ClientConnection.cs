@@ -124,6 +124,7 @@ internal class ClientConnection
     public void StopReceiving()
     {
         this.cancellationTokenSource.Cancel();
+        this.cancellationTokenSource.Dispose();
     }
 
     /// <summary>
@@ -132,12 +133,13 @@ internal class ClientConnection
     /// <returns>The task object representing the asynchronous operation.</returns>
     public async Task DisconnectAsync()
     {
-        if (this.State == WebSocketState.None)
+        WebSocketState currentState = this.State;
+        if (currentState == WebSocketState.None)
         {
             this.cancellationTokenSource.Cancel();
-        }
+       }
 
-        if (this.State == WebSocketState.Open)
+        if (currentState == WebSocketState.Open)
         {
             await this.SendCloseFrameAsync("Initiating close").ConfigureAwait(false);
             this.State = WebSocketState.CloseSent;
