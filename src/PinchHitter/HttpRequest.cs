@@ -73,7 +73,7 @@ public class HttpRequest
     /// </summary>
     /// <param name="rawRequest">The string containing the HTTP request.</param>
     /// <param name="parsedRequest">The parsed HTTP request.</param>
-    /// <returns>The parsed HTTP request data.</returns>
+    /// <returns><see langword="true"/> if the HTTP request was successfully parsed; otherwise <see langword="false"/>.</returns>
     public static bool TryParse(string rawRequest, out HttpRequest parsedRequest)
     {
         HttpRequest result = new();
