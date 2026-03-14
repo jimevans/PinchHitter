@@ -15,6 +15,7 @@ using System.Collections.Concurrent;
 public class ServerObservableEvent<T>
     where T : EventArgs
 {
+    private readonly object observerAdditionLock = new();
     private readonly ConcurrentDictionary<string, ServerObservableEventHandler<T>> observers = new();
     private readonly int maxObserverCount;
 
@@ -106,19 +107,22 @@ public class ServerObservableEvent<T>
     /// </remarks>
     public ServerEventObserver<T> AddObserver(Func<T, Task> handler, ServerObservableEventHandlerOptions handlerOptions = ServerObservableEventHandlerOptions.None, string description = "")
     {
-        if (this.maxObserverCount > 0 && this.observers.Count == this.maxObserverCount)
+        lock (this.observerAdditionLock)
         {
-            throw new PinchHitterException($"""This observable event only allows {this.maxObserverCount} {(this.maxObserverCount == 1 ? "handler" : "handlers")}.""");
-        }
+            if (this.maxObserverCount > 0 && this.observers.Count == this.maxObserverCount)
+            {
+                throw new PinchHitterException($"""This observable event only allows {this.maxObserverCount} {(this.maxObserverCount == 1 ? "handler" : "handlers")}.""");
+            }
 
-        string observerId = Guid.NewGuid().ToString();
-        if (string.IsNullOrEmpty(description))
-        {
-            description = $"ServerEventObserver<{typeof(T).Name}> (id: {observerId})";
-        }
+            string observerId = Guid.NewGuid().ToString();
+            if (string.IsNullOrEmpty(description))
+            {
+                description = $"ServerEventObserver<{typeof(T).Name}> (id: {observerId})";
+            }
 
-        this.observers.TryAdd(observerId, new ServerObservableEventHandler<T>(handler, handlerOptions, description));
-        return new ServerEventObserver<T>(this, observerId);
+            this.observers.TryAdd(observerId, new ServerObservableEventHandler<T>(handler, handlerOptions, description));
+            return new ServerEventObserver<T>(this, observerId);
+        }
     }
 
     /// <summary>

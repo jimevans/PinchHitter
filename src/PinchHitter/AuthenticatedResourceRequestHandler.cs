@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 /// </summary>
 public class AuthenticatedResourceRequestHandler : WebResourceRequestHandler
 {
+    private readonly object authenticatorLock = new();
     private readonly List<WebAuthenticator> authenticators = new();
 
     /// <summary>
@@ -29,13 +30,14 @@ public class AuthenticatedResourceRequestHandler : WebResourceRequestHandler
     /// </summary>
     /// <param name="authenticator">The authenticator to handle.</param>
     /// <remarks>
-    /// This method is not thread-safe and must be called before the server begins
-    /// accepting connections. Calling it concurrently with active request handling
-    /// produces undefined behavior.
+    /// This method is thread-safe and may be called at any time.
     /// </remarks>
     public void AddAuthenticator(WebAuthenticator authenticator)
     {
-        this.authenticators.Add(authenticator);
+        lock (this.authenticatorLock)
+        {
+            this.authenticators.Add(authenticator);
+        }
     }
 
     /// <summary>
@@ -92,16 +94,19 @@ public class AuthenticatedResourceRequestHandler : WebResourceRequestHandler
 
     private bool TryAuthenticate(string authorizationHeader)
     {
-        if (this.authenticators.Count == 0)
+        lock (this.authenticatorLock)
         {
-            return true;
-        }
-
-        foreach (WebAuthenticator authenticator in this.authenticators)
-        {
-            if (authenticator.IsAuthenticated(authorizationHeader))
+            if (this.authenticators.Count == 0)
             {
                 return true;
+            }
+
+            foreach (WebAuthenticator authenticator in this.authenticators)
+            {
+                if (authenticator.IsAuthenticated(authorizationHeader))
+                {
+                    return true;
+                }
             }
         }
 
