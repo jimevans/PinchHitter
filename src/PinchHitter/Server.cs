@@ -7,6 +7,7 @@ namespace PinchHitter;
 
 using System;
 using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
@@ -17,14 +18,14 @@ using System.Threading.Tasks;
 /// </summary>
 public class Server : IDisposable, IAsyncDisposable
 {
-    private readonly TcpListener listener;
     private readonly ConcurrentDictionary<string, ClientConnection> activeConnections = new();
     private readonly ConcurrentQueue<string> serverLog = new();
-    private readonly HttpRequestProcessor httpProcessor = new();
     private readonly ServerObservableEventSource<ServerDataReceivedEventArgs> onServerDataReceivedEvent = new();
     private readonly ServerObservableEventSource<ServerDataSentEventArgs> onServerDataSentEvent = new();
     private readonly ServerObservableEventSource<ClientConnectionEventArgs> onClientConnectedEvent = new();
     private readonly ServerObservableEventSource<ClientConnectionEventArgs> onClientDisconnectedEvent = new();
+    private readonly TcpListener listener;
+    private readonly HttpRequestProcessor httpProcessor;
     private int port = 0;
     private int bufferSize = 1024;
     private int isAcceptingConnectionsFlag = 0;
@@ -42,9 +43,20 @@ public class Server : IDisposable, IAsyncDisposable
     /// </summary>
     /// <param name="port">The port on which to listen. Passing zero (0) for the port will select a random port.</param>
     public Server(int port)
+        : this(port, new HttpRequestProcessor())
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="Server"/> class listening on a specific port with a custom processor for HTTP requests.
+    /// </summary>
+    /// <param name="port">The port on which to listen. Passing zero (0) for the port will select a random port.</param>
+    /// <param name="httpProcessor">The <see cref="HttpRequestProcessor"/> to use for processing HTTP requests.</param>
+    public Server(int port, HttpRequestProcessor httpProcessor)
     {
         this.port = port;
         this.listener = new(new IPEndPoint(IPAddress.Loopback, this.port));
+        this.httpProcessor = httpProcessor;
     }
 
     /// <summary>
