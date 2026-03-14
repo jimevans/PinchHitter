@@ -1,6 +1,7 @@
 namespace PinchHitter;
 
 using System.Net;
+using System.Text;
 using System.Threading.Tasks;
 
 [TestFixture]
@@ -15,7 +16,8 @@ public class NotFoundRequestHandlerTests
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
-            Assert.That(response.BodyContent, Is.EqualTo("Not Found"));
+            Assert.That(response.TextBodyContent, Is.EqualTo("Not Found"));
+            Assert.That(response.BodyContentBytes.ToArray(), Is.EqualTo(Encoding.UTF8.GetBytes("Not Found")));
         });
     }
 }

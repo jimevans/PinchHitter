@@ -1,6 +1,7 @@
 namespace PinchHitter;
 
 using System.Net;
+using System.Text;
 using System.Threading.Tasks;
 
 [TestFixture]
@@ -15,7 +16,8 @@ public class MethodNotAllowedRequestHandlerTests
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.MethodNotAllowed));
-            Assert.That(response.BodyContent, Is.EqualTo("Method Not Allowed"));
+            Assert.That(response.TextBodyContent, Is.EqualTo("Method Not Allowed"));
+            Assert.That(response.BodyContentBytes.ToArray(), Is.EqualTo(Encoding.UTF8.GetBytes("Method Not Allowed")));
             Assert.That(response.Headers, Contains.Key("Allow"));
             Assert.That(response.Headers["Allow"], Has.Count.EqualTo(1));
             Assert.That(response.Headers["Allow"][0], Is.EqualTo("DELETE, POST"));

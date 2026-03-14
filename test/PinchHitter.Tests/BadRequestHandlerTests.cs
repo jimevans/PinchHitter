@@ -1,6 +1,7 @@
 namespace PinchHitter;
 
 using System.Net;
+using System.Text;
 using System.Threading.Tasks;
 
 [TestFixture]
@@ -15,8 +16,8 @@ public class BadRequestHandlerTests
         Assert.Multiple(() =>
         {
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
-            Assert.That(response.BodyContent, Is.EqualTo("Bad Request"));
-        });
+            Assert.That(response.TextBodyContent, Is.EqualTo("Bad Request"));
+            Assert.That(response.BodyContentBytes.ToArray(), Is.EqualTo(Encoding.UTF8.GetBytes("Bad Request")));});
     }
 
 }

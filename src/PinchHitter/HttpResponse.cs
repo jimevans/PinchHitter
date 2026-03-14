@@ -28,7 +28,7 @@ public class HttpResponse
     /// <para>
     /// We maintain this list here, because the System.Net.HttpStatusDescription
     /// class is not available in .NET Standard 2.0, which is the target framework
-    /// for this library. Likewies, we omit values in the HttpStatusCode enum that
+    /// for this library. Likewise, we omit values in the HttpStatusCode enum that
     /// are not present in .NET Standard 2.0. Notable status code omissions include:
     /// <list>
     ///   <item>308 Permanent Redirect</item>
@@ -57,7 +57,7 @@ public class HttpResponse
     };
 
     private readonly string requestId;
-    private readonly Dictionary<string, List<string>> headers = new();
+    private readonly Dictionary<string, List<string>> headers = new(StringComparer.OrdinalIgnoreCase);
     private string httpVersion = "HTTP/1.1";
     private HttpStatusCode statusCode = HttpStatusCode.OK;
     private byte[] bodyContent = { };
@@ -108,14 +108,23 @@ public class HttpResponse
     public string HttpVersion { get => this.httpVersion; set => this.httpVersion = value; }
 
     /// <summary>
-    /// Gets or sets the body content of this HTTP response as an array of bytes.
+    /// Gets the body content of this HTTP response as an array of bytes.
     /// </summary>
-    public byte[] BodyContent { get => this.bodyContent; set => this.bodyContent = value; }
+    public ReadOnlyMemory<byte> BodyContentBytes { get => new ReadOnlyMemory<byte>(this.bodyContent); }
 
     /// <summary>
     /// Gets or sets the body content as a string.
     /// </summary>
     public string TextBodyContent { get => Encoding.UTF8.GetString(this.bodyContent); set => this.bodyContent = Encoding.UTF8.GetBytes(value); }
+
+    /// <summary>
+    /// Sets the body content of this HTTP response as an array of bytes.
+    /// </summary>
+    /// <param name="content">The byte array containing the body content.</param>
+    public void SetBodyContent(byte[] content)
+    {
+        this.bodyContent = content;
+    }
 
     /// <summary>
     /// Converts this HTTP response into an array of bytes suitable for sending across a socket connection.

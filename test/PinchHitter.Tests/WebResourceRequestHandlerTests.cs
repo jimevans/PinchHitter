@@ -18,7 +18,8 @@ public class WebResourceRequestHandlerTests
             Assert.That(handler.Data, Is.EqualTo(Encoding.UTF8.GetBytes("content")));
             Assert.That(handler.MimeType, Is.EqualTo("text/html;charset=utf-8"));
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
-            Assert.That(response.BodyContent, Is.EqualTo("content"));
+            Assert.That(response.TextBodyContent, Is.EqualTo("content"));
+            Assert.That(response.BodyContentBytes.ToArray(), Is.EqualTo(Encoding.UTF8.GetBytes("content")));
         });
     }
 

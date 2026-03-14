@@ -18,7 +18,7 @@ public class RedirectRequestHandlerTests
             Assert.That(response.Headers, Contains.Key("Location"));
             Assert.That(response.Headers["Location"], Has.Count.EqualTo(1));
             Assert.That(response.Headers["Location"][0], Is.EqualTo("/redirected"));
-            Assert.That(response.BodyContent, Is.Empty);
+            Assert.That(response.BodyContentBytes.ToArray(), Is.Empty);
         });
     }
 

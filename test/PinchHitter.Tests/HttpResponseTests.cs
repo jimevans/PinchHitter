@@ -19,7 +19,7 @@ public class HttpResponseTests
             Assert.That(response.HttpVersion, Is.EqualTo("HTTP/1.1"));
             Assert.That(response.Headers, Has.Count.EqualTo(1));
             Assert.That(response.Headers, Contains.Key("Custom-Header"));
-            Assert.That(response.BodyContent, Is.Not.Empty);
+            Assert.That(response.BodyContentBytes.ToArray(), Is.Not.Empty);
             Assert.That(response.ToByteArray(), Has.Length.EqualTo(66));
         });
     }

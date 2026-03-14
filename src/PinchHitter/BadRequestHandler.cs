@@ -16,14 +16,14 @@ public class BadRequestHandler : HttpRequestHandler
     /// <summary>
     /// Initializes a new instance of the <see cref="BadRequestHandler"/> class.
     /// </summary>
-    /// <param name="content">The content of the Not Found page to be served.</param>
+    /// <param name="content">The content of the Bad Request page to be served.</param>
     public BadRequestHandler(string content)
         : base(Encoding.UTF8.GetBytes(content))
     {
     }
 
     /// <summary>
-    /// Process an HTTP request where the requested resource is not found.
+    /// Process an HTTP request where the request is malformed or invalid.
     /// </summary>
     /// <param name="request">The HttpRequest object representing the request.</param>
     /// <param name="additionalData">Additional data passed into the method for handling requests.</param>
