@@ -15,7 +15,7 @@ public class WebResourceRequestHandlerTests
         HttpResponse response = await handler.HandleRequestAsync("connectionId", request);
         Assert.Multiple(() =>
         {
-            Assert.That(handler.Data, Is.EqualTo(Encoding.UTF8.GetBytes("content")));
+            Assert.That(handler.Data.ToArray(), Is.EqualTo(Encoding.UTF8.GetBytes("content")));
             Assert.That(handler.MimeType, Is.EqualTo("text/html;charset=utf-8"));
             Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
             Assert.That(response.TextBodyContent, Is.EqualTo("content"));

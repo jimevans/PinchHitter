@@ -40,7 +40,7 @@ public abstract class HttpRequestHandler
     /// <summary>
     /// Gets the data for this resource as an array of bytes.
     /// </summary>
-    public byte[] Data => this.data;
+    public ReadOnlyMemory<byte> Data => this.data;
 
     /// <summary>
     /// Gets or sets the MIME type of this resource.
