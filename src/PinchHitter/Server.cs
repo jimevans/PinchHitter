@@ -247,6 +247,13 @@ public class Server : IAsyncDisposable
     /// <param name="data">A byte array representing the data to be sent.</param>
     /// <returns>The task object representing the asynchronous operation.</returns>
     /// <exception cref="PinchHitterException">Thrown when an invalid connection ID is specified.</exception>
+    /// <remarks>
+    /// This method is intended for advanced users who want to send raw byte data to the client,
+    /// and should be used with caution. Improper use of this method can lead to malformed
+    /// responses that may cause clients to crash or behave unexpectedly. This is currently
+    /// implemented for WebSocket connections, but is also intended to provide support for
+    /// future protocols like HTTP2 or QUIC.
+    /// </remarks>
     protected async Task SendDataAsync(string connectionId, byte[] data)
     {
         if (!this.activeConnections.TryGetValue(connectionId, out ClientConnection? connection))
