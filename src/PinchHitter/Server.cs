@@ -27,6 +27,7 @@ public class Server : IDisposable, IAsyncDisposable
     private readonly ServerObservableEventSource<EventArgs> onSocketConnectedEvent = new();
     private readonly TcpListener listener;
     private readonly HttpRequestProcessor httpProcessor;
+    private Task acceptConnectionsTask = Task.CompletedTask;
     private int port = 0;
     private int bufferSize = 1024;
     private int isAcceptingConnectionsFlag = 0;
@@ -149,7 +150,7 @@ public class Server : IDisposable, IAsyncDisposable
         }
 
         this.IsAcceptingConnections = true;
-        _ = Task.Run(() => this.AcceptConnectionsAsync()).ConfigureAwait(false);
+        this.acceptConnectionsTask = Task.Run(() => this.AcceptConnectionsAsync());
     }
 
     /// <summary>
@@ -170,8 +171,14 @@ public class Server : IDisposable, IAsyncDisposable
         List<Task> tasks = this.CloseConnections();
 
         // Wait for all receive loops to complete. ContinueWith swallows per-task
-        // OperationCanceledExceptions that result from canceling the receive token.
+        // OperationCanceledExceptions that result from canceling the receive token,
+        // and prevents UnobservedTaskException crashes due to those expected exceptions.
         await Task.WhenAll(tasks.Select(t => t.ContinueWith(_ => { }, TaskScheduler.Default))).ConfigureAwait(false);
+
+        // Also swallow any OperationCanceledException that may be thrown by the
+        // main accept loop, and prevent UnobservedTaskException crashes due t
+        // that expected exception.
+        await this.acceptConnectionsTask.ContinueWith(_ => { }, TaskScheduler.Default).ConfigureAwait(false);
     }
 
     /// <summary>
