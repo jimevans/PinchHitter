@@ -63,28 +63,24 @@ public class ServerTests
     {
         this.server!.RegisterHandler("/", new WebResourceRequestHandler("hello world"));
 
-        TaskCompletionSource taskCompletionSource = new();
-        string connectionId = string.Empty;
+        TaskCompletionSource<ClientConnectionEventArgs> connectionTaskCompletionSource = new();
         this.server.OnClientConnected.AddObserver((e) =>
         {
-            connectionId = e.ConnectionId;
-            taskCompletionSource.SetResult();
+            connectionTaskCompletionSource.SetResult(e);
         });
 
-        string sendData = string.Empty;
-        string sentConnectionId = string.Empty;
+        TaskCompletionSource<ServerDataSentEventArgs> dataSentTaskCompletionSource = new();
         this.server.OnDataSent.AddObserver((e) =>
         {
-            sentConnectionId = e.ConnectionId;
-            sendData = e.Data;
+            dataSentTaskCompletionSource.SetResult(e);
         });
 
         using HttpClient client = new();
         HttpResponseMessage responseMessage = await client.GetAsync($"http://localhost:{server.Port}/");
-        await taskCompletionSource.Task;
+        await Task.WhenAll([connectionTaskCompletionSource.Task, dataSentTaskCompletionSource.Task]);
         string responseContent = await responseMessage.Content.ReadAsStringAsync();
-        Assert.That(sentConnectionId, Is.EqualTo(connectionId));
-        Assert.That(sendData, Does.StartWith("HTTP/1.1 200 OK"));
+        Assert.That(dataSentTaskCompletionSource.Task.Result.ConnectionId, Is.EqualTo(connectionTaskCompletionSource.Task.Result.ConnectionId));
+        Assert.That(dataSentTaskCompletionSource.Task.Result.Data, Does.StartWith("HTTP/1.1 200 OK"));
     }
 
     [Test]
