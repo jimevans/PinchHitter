@@ -13,15 +13,18 @@ using System.Net;
 public class RedirectRequestHandler : HttpRequestHandler
 {
     private readonly string redirectUrl;
+    private readonly HttpStatusCode statusCode;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RedirectRequestHandler"/> class.
     /// </summary>
     /// <param name="redirectUrl">The URL, relative to the root, to which to redirect the request.</param>
-    public RedirectRequestHandler(string redirectUrl)
+    /// <param name="statusCode">The HTTP status code for the redirect.</param>
+    public RedirectRequestHandler(string redirectUrl, HttpStatusCode statusCode = HttpStatusCode.MovedPermanently)
         : base(""u8.ToArray())
     {
         this.redirectUrl = redirectUrl;
+        this.statusCode = statusCode;
     }
 
     /// <summary>
@@ -31,7 +34,7 @@ public class RedirectRequestHandler : HttpRequestHandler
     /// <returns>The response to the HTTP request.</returns>
     protected override Task<HttpResponse> ProcessRequestAsync(HttpRequest request)
     {
-        HttpResponse responseData = this.CreateHttpResponse(request.Id, HttpStatusCode.MovedPermanently);
+        HttpResponse responseData = this.CreateHttpResponse(request.Id, this.statusCode);
         responseData.Headers["Location"] = new List<string>() { this.redirectUrl };
         responseData.Headers["Content-Length"] = new List<string>() { "0" };
         return Task.FromResult<HttpResponse>(responseData);
