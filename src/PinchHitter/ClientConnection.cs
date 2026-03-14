@@ -239,7 +239,7 @@ internal class ClientConnection
 
             if (frame.Opcode == WebSocketOpcodeType.Close)
             {
-                if (!this.IgnoreCloseRequest)
+                if (!this.IgnoreCloseRequest && this.State != WebSocketState.CloseSent)
                 {
                     this.State = WebSocketState.CloseReceived;
                     await this.SendCloseFrameAsync("Acknowledge close").ConfigureAwait(false);

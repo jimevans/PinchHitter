@@ -314,6 +314,60 @@ public class ServerTests
     }
 
     [Test]
+    public async Task TestServerCanCompleteWebSocketCloseHandshakeWhenInitiatingClose()
+    {
+        // Verifies RFC 6455 §7.1.2: after the server initiates close (CloseSent state),
+        // receiving the client's close acknowledgement must NOT trigger a second close frame.
+        ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(1024, 1024);
+        ManualResetEventSlim connectionEvent = new(false);
+        string connectionId = string.Empty;
+        server!.OnClientConnected.AddObserver((e) =>
+        {
+            connectionId = e.ConnectionId;
+            connectionEvent.Set();
+        });
+
+        int closeFramesSent = 0;
+        server.OnDataSent.AddObserver((e) =>
+        {
+            // WebSocket close frames in this implementation are always exactly 2 bytes (0x88 0x00).
+            // HTTP and WebSocket data frames are larger, so ByteCount == 2 is a reliable
+            // indicator that a close frame was sent within this test.
+            if (e.ByteCount == 2)
+            {
+                Interlocked.Increment(ref closeFramesSent);
+            }
+        });
+
+        ManualResetEventSlim disconnectedEvent = new(false);
+        server.OnClientDisconnected.AddObserver((e) =>
+        {
+            disconnectedEvent.Set();
+        });
+
+        using ClientWebSocket socket = new();
+        await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
+        connectionEvent.Wait(TimeSpan.FromSeconds(1));
+
+        Task<WebSocketReceiveResult> receiveTask = Task.Run(() => socket.ReceiveAsync(buffer, CancellationToken.None));
+        await server.DisconnectAsync(connectionId);
+
+        WebSocketReceiveResult result = await receiveTask;
+        Assert.That(result.MessageType, Is.EqualTo(WebSocketMessageType.Close));
+
+        // Complete the close handshake from the client side.
+        await socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "Acknowledging close", CancellationToken.None);
+
+        bool disconnected = disconnectedEvent.Wait(TimeSpan.FromSeconds(1));
+        Assert.Multiple(() =>
+        {
+            Assert.That(disconnected, Is.True);
+            Assert.That(socket.State, Is.EqualTo(WebSocketState.Closed));
+            Assert.That(closeFramesSent, Is.EqualTo(1));
+        });
+    }
+
+    [Test]
     public async Task TestServerCanReceiveWebSocketDataFromClient()
     {
         ManualResetEventSlim connectionEvent = new(false);
