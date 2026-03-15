@@ -13,6 +13,10 @@ public enum WebSocketOpcodeType
     /// <summary>
     /// Denotes a continuation code.
     /// </summary>
+    /// <remarks>
+    /// This opcode is used for fragment frames, but is not yet supported by this implementation.
+    /// Implementation may be added in a future release.
+    /// </remarks>
     Fragment = 0,
 
     /// <summary>
@@ -23,6 +27,10 @@ public enum WebSocketOpcodeType
     /// <summary>
     /// Denotes a binary code.
     /// </summary>
+    /// <remarks>
+    /// This opcode is used for binary data, but is not yet supported by this implementation.
+    /// Implementation may be added in a future release.
+    /// </remarks>
     Binary = 2,
 
     /// <summary>
@@ -33,10 +41,18 @@ public enum WebSocketOpcodeType
     /// <summary>
     /// Denotes a ping.
     /// </summary>
+    /// <remarks>
+    /// This opcode is used as a heartbeat for WebSocket connections, but is not yet supported by this implementation.
+    /// Implementation may be added in a future release.
+    /// </remarks>
     Ping = 9,
 
     /// <summary>
     /// Denotes a pong.
     /// </summary>
+    /// <remarks>
+    /// This opcode is used as a response to a ping frame, but is not yet supported by this implementation.
+    /// Implementation may be added in a future release.
+    /// </remarks>
     Pong = 10,
 }

@@ -6,7 +6,7 @@
 namespace PinchHitter;
 
 /// <summary>
-/// Object containing event data for events raised when data is received from a the test web server.
+/// Object containing event data for events raised when data is received from the test web server.
 /// </summary>
 public class ServerDataReceivedEventArgs : EventArgs
 {

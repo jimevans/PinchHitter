@@ -17,6 +17,7 @@ using System.Threading.Tasks;
 /// </summary>
 public class Server : IAsyncDisposable
 {
+    private readonly SemaphoreSlim startStopSemaphore = new(1, 1);
     private readonly ConcurrentDictionary<string, ClientConnection> activeConnections = new();
     private readonly ConcurrentQueue<string> serverLog = new();
     private readonly ServerObservableEventSource<ServerDataReceivedEventArgs> onServerDataReceivedEvent = new();
@@ -27,9 +28,11 @@ public class Server : IAsyncDisposable
     private readonly TcpListener listener;
     private readonly HttpRequestProcessor httpProcessor;
     private Task acceptConnectionsTask = Task.CompletedTask;
+    private CancellationTokenSource? acceptConnectionsCancellationTokenSource;
     private int port = 0;
     private int bufferSize = 1024;
     private int isAcceptingConnectionsFlag = 0;
+    private bool isDisposed = false;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Server"/> class.
@@ -130,18 +133,45 @@ public class Server : IAsyncDisposable
     /// Asynchronously starts the server listening for incoming connections.
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public Task StartAsync()
+    public async Task StartAsync()
     {
-        this.listener.Start();
-        IPEndPoint? localEndpoint = this.listener.LocalEndpoint as IPEndPoint;
-        if (localEndpoint is not null)
+        this.ThrowIfDisposed();
+        await this.AcquireStartStopLockAsync().ConfigureAwait(false);
+        try
         {
-            this.port = localEndpoint.Port;
-        }
+            if (this.IsAcceptingConnections)
+            {
+                throw new InvalidOperationException("Server is already accepting connections");
+            }
 
-        this.IsAcceptingConnections = true;
-        this.acceptConnectionsTask = Task.Run(() => this.AcceptConnectionsAsync());
-        return Task.CompletedTask;
+            // Set the accepting connections flag before starting the listener
+            // to ensure that the accept loop is able to begin accepting
+            // connections immediately.
+            this.IsAcceptingConnections = true;
+
+            // Set up the cancellation token source for the accept loop. Note
+            // that the token source is disposed in StopAsync after canceling.
+            // The CancellationToken is registered to call listener.Stop(),
+            // which will cause the AcceptSocketAsync call in the accept loop
+            // to throw a SocketException, allowing the loop to exit gracefully.
+            this.acceptConnectionsCancellationTokenSource = new CancellationTokenSource();
+            this.acceptConnectionsCancellationTokenSource.Token.Register(this.listener.Stop);
+
+            // Start the listener, and capture the port.
+            this.listener.Start();
+            IPEndPoint? localEndpoint = this.listener.LocalEndpoint as IPEndPoint;
+            if (localEndpoint is not null)
+            {
+                this.port = localEndpoint.Port;
+            }
+
+            // Start the accept loop.
+            this.acceptConnectionsTask = this.AcceptConnectionsAsync(this.acceptConnectionsCancellationTokenSource.Token);
+        }
+        finally
+        {
+            await this.ReleaseStartStopLockAsync().ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -151,17 +181,56 @@ public class Server : IAsyncDisposable
     /// <returns>The task object representing the asynchronous operation.</returns>
     public async Task StopAsync()
     {
-        List<Task> tasks = this.CloseConnections();
+        this.ThrowIfDisposed();
+        await this.AcquireStartStopLockAsync().ConfigureAwait(false);
+        try
+        {
+            List<Task> tasks = [];
+            if (this.IsAcceptingConnections)
+            {
+                // Step 1: Stop accepting new connections. Future incoming
+                // connections will be rejected immediately after this point,
+                // but existing connections will remain active until they are
+                // stopped in Step 3.
+                this.IsAcceptingConnections = false;
 
-        // Wait for all receive loops to complete. ContinueWith swallows per-task
-        // OperationCanceledExceptions that result from canceling the receive token,
-        // and prevents UnobservedTaskException crashes due to those expected exceptions.
-        await Task.WhenAll(tasks.Select(t => t.ContinueWith(_ => { }, TaskScheduler.Default))).ConfigureAwait(false);
+                // Step 2: Stop the accept loop and close the listener socket.
+                // The CancellationToken is registered to call listener.Stop(),
+                // which will cause the AcceptSocketAsync call in the accept
+                // loop to throw a SocketException, allowing the loop to exit
+                // gracefully. This allows any in-flight accepts to complete
+                // and ensures that the accept loop task completes before we
+                // proceed with shutting down active connections.
+                if (this.acceptConnectionsCancellationTokenSource is not null)
+                {
+                    this.acceptConnectionsCancellationTokenSource.Cancel();
+                    await this.acceptConnectionsTask.ConfigureAwait(false);
+                    this.acceptConnectionsCancellationTokenSource.Dispose();
+                    this.acceptConnectionsCancellationTokenSource = null;
+                }
 
-        // Also swallow any OperationCanceledException that may be thrown by the
-        // main accept loop, and prevent UnobservedTaskException crashes due to
-        // that expected exception.
-        await this.acceptConnectionsTask.ContinueWith(_ => { }, TaskScheduler.Default).ConfigureAwait(false);
+                // Step 3: Stop all active connections and gather their receive tasks.
+                // Snapshot before canceling: OnClientConnectionStopped removes tasks
+                // from the dictionary asynchronously as each connection winds down.
+                List<ClientConnection> connections = [.. this.activeConnections.Values];
+                foreach (ClientConnection connection in connections)
+                {
+                    connection.StopReceiving();
+                    tasks.Add(connection.DataReceivedTask);
+                }
+
+                this.activeConnections.Clear();
+            }
+
+            // Step 4: Wait for all receive loops to complete. ContinueWith swallows per-task
+            // OperationCanceledExceptions that result from canceling the receive token,
+            // and prevents UnobservedTaskException crashes due to those expected exceptions.
+            await Task.WhenAll(tasks.Select(t => t.ContinueWith(_ => { }, TaskScheduler.Default))).ConfigureAwait(false);
+        }
+        finally
+        {
+            await this.ReleaseStartStopLockAsync().ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -170,7 +239,11 @@ public class Server : IAsyncDisposable
     /// <returns>The value task object representing the asynchronous operation.</returns>
     public async ValueTask DisposeAsync()
     {
-        await this.StopAsync().ConfigureAwait(false);
+        if (!this.isDisposed)
+        {
+            await this.DisposeAsyncCore().ConfigureAwait(false);
+        }
+
         GC.SuppressFinalize(this);
     }
 
@@ -181,6 +254,7 @@ public class Server : IAsyncDisposable
     /// <returns>The task object representing the asynchronous operation.</returns>
     public async Task DisconnectAsync(string connectionId)
     {
+        this.ThrowIfDisposed();
         if (!this.activeConnections.TryGetValue(connectionId, out ClientConnection? connection))
         {
             throw new PinchHitterException($"Unknown connection ID {connectionId}");
@@ -194,8 +268,18 @@ public class Server : IAsyncDisposable
     /// </summary>
     /// <param name="url">The relative URL associated with this resource.</param>
     /// <param name="handler">The handler to handle HTTP requests for the given URL.</param>
+    /// <remarks>
+    /// The URL to be registered should be relative to the root URL of the server.
+    /// For example, if the server is listening on http://localhost:8080, and you want
+    /// to register a handler for requests to http://localhost:8080/hello, you should
+    /// pass "/hello" as the URL parameter. URL matching is strictly a string match,
+    /// meaning that URLs must exactly match the output of Url.TryCreate() to be
+    /// handled by the default HttpRequestProcessor. For more flexible URL matching,
+    /// users should create their own implementation of HttpRequestProcessor.
+    /// </remarks>
     public void RegisterHandler(string url, HttpRequestHandler handler)
     {
+        this.ThrowIfDisposed();
         this.httpProcessor.RegisterHandler(url, handler);
     }
 
@@ -205,19 +289,31 @@ public class Server : IAsyncDisposable
     /// <param name="url">The relative URL associated with this resource.</param>
     /// <param name="method">The HTTP method for which to add the handler.</param>
     /// <param name="handler">The handler to handle HTTP requests for the given URL.</param>
+    /// <remarks>
+    /// The URL to be registered should be relative to the root URL of the server.
+    /// For example, if the server is listening on http://localhost:8080, and you want
+    /// to register a handler for requests to http://localhost:8080/hello, you should
+    /// pass "/hello" as the URL parameter. URL matching is strictly a string match,
+    /// meaning that URLs must exactly match the output of Url.TryCreate() to be
+    /// handled by the default HttpRequestProcessor. For more flexible URL matching,
+    /// users should create their own implementation of HttpRequestProcessor.
+    /// </remarks>
     public void RegisterHandler(string url, HttpRequestMethod method, HttpRequestHandler handler)
     {
+        this.ThrowIfDisposed();
         this.httpProcessor.RegisterHandler(url, method, handler);
     }
 
     /// <summary>
-    /// Asynchronously sends data to the client connected via this client connection.
+    /// Asynchronously sends data formatted as a WebSocket frame to the client connected via this client connection.
+    /// It is expected that the client connection is already established as a WebSocket connection.
     /// </summary>
     /// <param name="connectionId">The ID of the client connection to send data to.</param>
     /// <param name="data">The data to be sent.</param>
     /// <returns>The task object representing the asynchronous operation.</returns>
-    public async Task SendDataAsync(string connectionId, string data)
+    public async Task SendWebSocketDataAsync(string connectionId, string data)
     {
+        this.ThrowIfDisposed();
         WebSocketFrame frame = WebSocketFrame.Encode(data, WebSocketOpcodeType.Text);
         await this.SendDataAsync(connectionId, frame.Data).ConfigureAwait(false);
     }
@@ -232,6 +328,7 @@ public class Server : IAsyncDisposable
     /// <exception cref="PinchHitterException">Thrown when an invalid connection ID is specified.</exception>
     public void IgnoreCloseConnectionRequest(string connectionId, bool ignoreCloseConnectionRequest)
     {
+        this.ThrowIfDisposed();
         if (!this.activeConnections.TryGetValue(connectionId, out ClientConnection? connection))
         {
             throw new PinchHitterException($"Unknown connection ID {connectionId}");
@@ -265,6 +362,19 @@ public class Server : IAsyncDisposable
     }
 
     /// <summary>
+    /// Asynchronously releases all resources used by the <see cref="Server"/>.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous dispose operation.</returns>
+    protected virtual async ValueTask DisposeAsyncCore()
+    {
+        // StopAsync calls Stop() on the listener.
+        await this.StopAsync().ConfigureAwait(false);
+        this.listener.Server.Dispose();
+        this.startStopSemaphore.Dispose();
+        this.isDisposed = true;
+    }
+
+    /// <summary>
     /// Adds a message to the server log.
     /// </summary>
     /// <param name="message">The message to add.</param>
@@ -273,67 +383,97 @@ public class Server : IAsyncDisposable
         this.serverLog.Enqueue(message);
     }
 
-    private async Task AcceptConnectionsAsync()
+    /// <summary>
+    /// Asynchronously accepts an incoming socket connection.
+    /// </summary>
+    /// <returns>The Task containing the Socket object accepted by the listener.</returns>
+    protected virtual async Task<Socket> AcceptSocketAsync()
     {
-        while (true)
+        Socket socket = await this.listener.AcceptSocketAsync().ConfigureAwait(false);
+        return socket;
+    }
+
+    private async Task AcceptConnectionsAsync(CancellationToken cancellationToken)
+    {
+        while (cancellationToken.IsCancellationRequested == false)
         {
-            Socket socket = await this.listener.AcceptSocketAsync().ConfigureAwait(false);
-            await this.onSocketConnectedEvent.NotifyObserversAsync(EventArgs.Empty).ConfigureAwait(false);
-            if (this.IsAcceptingConnections)
+            Socket? socket = null;
+            try
             {
-                ClientConnection clientConnection = new(socket, this.httpProcessor, this.bufferSize);
-                this.activeConnections.TryAdd(clientConnection.ConnectionId, clientConnection);
-                clientConnection.OnDataReceived.AddObserver(async (e) =>
+                socket = await this.AcceptSocketAsync().ConfigureAwait(false);
+                await this.onSocketConnectedEvent.NotifyObserversAsync(EventArgs.Empty).ConfigureAwait(false);
+                if (this.IsAcceptingConnections)
                 {
-                    await this.onServerDataReceivedEvent.NotifyObserversAsync(new ServerDataReceivedEventArgs(e.ConnectionId, e.ByteCount, e.DataReceived)).ConfigureAwait(false);
-                });
-                clientConnection.OnDataSent.AddObserver(async (e) =>
+                    // Create ClientConnection, and transfer ownership of the Socket
+                    // to ClientConnection, which will prevent disposal in finally block
+                    ClientConnection clientConnection = new(socket, this.httpProcessor, this.bufferSize);
+                    this.activeConnections.TryAdd(clientConnection.ConnectionId, clientConnection);
+                    clientConnection.OnDataReceived.AddObserver(async (e) =>
+                    {
+                        await this.onServerDataReceivedEvent.NotifyObserversAsync(new ServerDataReceivedEventArgs(e.ConnectionId, e.ByteCount, e.DataReceived)).ConfigureAwait(false);
+                    });
+                    clientConnection.OnDataSent.AddObserver(async (e) =>
+                    {
+                        await this.onServerDataSentEvent.NotifyObserversAsync(new ServerDataSentEventArgs(e.ConnectionId, e.ByteCount, e.DataSent)).ConfigureAwait(false);
+                    });
+                    clientConnection.OnLogMessage.AddObserver((e) =>
+                    {
+                        this.LogMessage(e.Message);
+                    });
+                    clientConnection.OnStarting.AddObserver(async (e) =>
+                    {
+                        await this.OnClientConnectionStarting(clientConnection).ConfigureAwait(false);
+                    });
+                    clientConnection.OnStopped.AddObserver(async (e) =>
+                    {
+                        await this.OnClientConnectionStopped(e.ConnectionId).ConfigureAwait(false);
+                    });
+                    clientConnection.StartReceiving();
+                    socket = null;
+                    this.LogMessage("Client connected");
+                }
+                else
                 {
-                    await this.onServerDataSentEvent.NotifyObserversAsync(new ServerDataSentEventArgs(e.ConnectionId, e.ByteCount, e.DataSent)).ConfigureAwait(false);
-                });
-                clientConnection.OnLogMessage.AddObserver((e) =>
-                {
-                    this.LogMessage(e.Message);
-                });
-                clientConnection.OnStarting.AddObserver(async (e) =>
-                {
-                    await this.OnClientConnectionStarting(clientConnection).ConfigureAwait(false);
-                });
-                clientConnection.OnStopped.AddObserver(async (e) =>
-                {
-                    await this.OnClientConnectionStopped(e.ConnectionId).ConfigureAwait(false);
-                });
-                clientConnection.StartReceiving();
-                this.LogMessage("Client connected");
+                    // If we're not accepting connections, immediately close the
+                    // socket to reject the connection attempt.
+                    socket.Close();
+                }
             }
-            else
+            catch (SocketException)
             {
-                socket.Close();
+                break;
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (ObjectDisposedException)
+            {
+                break;
+            }
+            finally
+            {
+                socket?.Dispose();
             }
         }
     }
 
-    private List<Task> CloseConnections()
+    private void ThrowIfDisposed()
     {
-        List<Task> tasks = [];
-        if (this.IsAcceptingConnections)
+        if (this.isDisposed)
         {
-            this.IsAcceptingConnections = false;
-
-            // Snapshot before canceling: OnClientConnectionStopped removes tasks from the
-            // dictionary asynchronously as each connection winds down.
-            List<ClientConnection> connections = [.. this.activeConnections.Values];
-            foreach (ClientConnection connection in connections)
-            {
-                connection.StopReceiving();
-                tasks.Add(connection.DataReceivedTask);
-            }
-
-            this.activeConnections.Clear();
-            this.listener.Stop();
+            throw new ObjectDisposedException(nameof(Server));
         }
+    }
 
-        return tasks;
+    private async Task AcquireStartStopLockAsync(CancellationToken cancellationToken = default)
+    {
+        await this.startStopSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task ReleaseStartStopLockAsync()
+    {
+        this.startStopSemaphore.Release();
     }
 
     private async Task OnClientConnectionStarting(ClientConnection connection)

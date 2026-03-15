@@ -28,7 +28,7 @@ public class MethodNotAllowedRequestHandler : HttpRequestHandler
     {
         if (allowedMethods is null)
         {
-            throw new ArgumentNullException("Request handler requires list of valid methods.", nameof(allowedMethods));
+            throw new ArgumentNullException(nameof(allowedMethods), "Request handler requires list of valid methods.");
         }
 
         if (allowedMethods.Count == 0)

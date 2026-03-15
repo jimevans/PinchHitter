@@ -9,29 +9,12 @@ using System.Threading;
 [TestFixture]
 public class ServerTests
 {
-    private Server? server;
-
-    [SetUp]
-    public async Task Setup()
-    {
-        this.server = new();
-        await this.server.StartAsync();
-    }
-
-    [TearDown]
-    public async Task TearDown()
-    {
-        if (this.server is not null)
-        {
-            await this.server.StopAsync();
-            this.server = null;
-        }
-    }
-
     [Test]
     public async Task TestServerCanProcessHttpRequests()
     {
-        this.server!.RegisterHandler("/", new WebResourceRequestHandler("hello world"));
+        await using Server server = new();
+        await server.StartAsync();
+        server.RegisterHandler("/", new WebResourceRequestHandler("hello world"));
         using HttpClient client = new();
         HttpResponseMessage responseMessage = await client.GetAsync($"http://localhost:{server.Port}/");
         string responseContent = await responseMessage.Content.ReadAsStringAsync();
@@ -45,10 +28,12 @@ public class ServerTests
     [Test]
     public async Task TestCanInterceptIncomingHttpRequests()
     {
-        this.server!.RegisterHandler("/", new WebResourceRequestHandler("hello world"));
+        await using Server server = new();
+        await server.StartAsync();
+        server.RegisterHandler("/", new WebResourceRequestHandler("hello world"));
 
         string receivedData = string.Empty;
-        this.server.OnDataReceived.AddObserver((e) =>
+        server.OnDataReceived.AddObserver((e) =>
         {
             receivedData = e.Data;
         });
@@ -61,16 +46,18 @@ public class ServerTests
     [Test]
     public async Task TestCanInterceptIncomingHttpResponses()
     {
-        this.server!.RegisterHandler("/", new WebResourceRequestHandler("hello world"));
+        await using Server server = new();
+        await server.StartAsync();
+        server.RegisterHandler("/", new WebResourceRequestHandler("hello world"));
 
         TaskCompletionSource<ClientConnectionEventArgs> connectionTaskCompletionSource = new();
-        this.server.OnClientConnected.AddObserver((e) =>
+        server.OnClientConnected.AddObserver((e) =>
         {
             connectionTaskCompletionSource.SetResult(e);
         });
 
         TaskCompletionSource<ServerDataSentEventArgs> dataSentTaskCompletionSource = new();
-        this.server.OnDataSent.AddObserver((e) =>
+        server.OnDataSent.AddObserver((e) =>
         {
             dataSentTaskCompletionSource.SetResult(e);
         });
@@ -86,9 +73,11 @@ public class ServerTests
     [Test]
     public async Task TestServerCanInitiateCloseForHttpConnection()
     {
+        await using Server server = new();
+        await server.StartAsync();
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;
-        server!.OnClientConnected.AddObserver((e) =>
+        server.OnClientConnected.AddObserver((e) =>
         {
             connectionId = e.ConnectionId;
             connectionEvent.Set();
@@ -103,25 +92,27 @@ public class ServerTests
             }
         });
 
-        this.server!.RegisterHandler("/", new WebResourceRequestHandler("hello world"));
+        server.RegisterHandler("/", new WebResourceRequestHandler("hello world"));
         using HttpClient client = new();
         HttpResponseMessage responseMessage = await client.GetAsync($"http://localhost:{server.Port}/");
         connectionEvent.Wait(TimeSpan.FromSeconds(1));
         string responseContent = await responseMessage.Content.ReadAsStringAsync();
 
-        await this.server.DisconnectAsync(connectionId);
+        await server.DisconnectAsync(connectionId);
         bool disconnectEventRaised = disconnectionEvent.Wait(TimeSpan.FromSeconds(1));
         Assert.Multiple(() =>
         {
             Assert.That(disconnectEventRaised, Is.True);
-            Assert.That(async () => await this.server.DisconnectAsync(connectionId), Throws.InstanceOf<PinchHitterException>());
+            Assert.That(async () => await server.DisconnectAsync(connectionId), Throws.InstanceOf<PinchHitterException>());
         });
     }
 
     [Test]
     public async Task TestShutdownWithoutReceivingRequest()
     {
-        Assert.That(async () => await this.server!.StopAsync(), Throws.Nothing);
+        await using Server server = new();
+        await server.StartAsync();
+        Assert.That(async () => await server.StopAsync(), Throws.Nothing);
     }
 
     [Test]
@@ -132,18 +123,110 @@ public class ServerTests
     }
 
     [Test]
+    public async Task TestCallingStartAsyncMultipleTimesThrows()
+    {
+        await using Server localServer = new();
+        Assert.That(async () => await localServer.StartAsync(), Throws.Nothing);
+        Assert.That(async () => await localServer.StartAsync(), Throws.InstanceOf<InvalidOperationException>());
+    }
+
+    [Test]
+    public async Task TestCanStartAsyncAfterStopAsync()
+    {
+        await using Server localServer = new();
+        Assert.That(async () => await localServer.StartAsync(), Throws.Nothing);
+        Assert.That(async () => await localServer.StopAsync(), Throws.Nothing);
+        Assert.That(async () => await localServer.StartAsync(), Throws.Nothing);
+    }
+
+    [Test]
+    public async Task TestCanStopAsync()
+    {
+        await using Server server = new();
+        await server.StartAsync();
+        Assert.That(async () => await server.StopAsync(), Throws.Nothing);
+    }
+
+    [Test]
+    public async Task TestCanCallStopAsyncMultipleTimes()
+    {
+        await using Server server = new();
+        await server.StartAsync();
+        Assert.That(async () => await server.StopAsync(), Throws.Nothing);
+        Assert.That(async () => await server.StopAsync(), Throws.Nothing);
+    }
+
+    [Test]
     public async Task TestCanDisposeAsync()
     {
-        Assert.That(async () => await this.server!.DisposeAsync(), Throws.Nothing);
+        await using Server server = new();
+        await server.StartAsync();
+        Assert.That(async () => await server.DisposeAsync(), Throws.Nothing);
+    }
+
+    [Test]
+    public async Task TestCanDisposeRepeatedly()
+    {
+        await using Server server = new();
+        await server.StartAsync();
+        Assert.That(async () => await server.DisposeAsync(), Throws.Nothing);
+        Assert.That(async () => await server.DisposeAsync(), Throws.Nothing);
+   }
+
+    [Test]
+    public async Task TestCannotExecuteMethodsAfterDispose()
+    {
+        await using Server server = new();
+        await server.StartAsync();
+        await server.DisposeAsync();
+        Assert.Multiple(() =>
+        {
+            Assert.That(async () => await server.StartAsync(), Throws.InstanceOf<ObjectDisposedException>());
+            Assert.That(async () => await server.StopAsync(), Throws.InstanceOf<ObjectDisposedException>());
+            Assert.That(async () => await server.SendWebSocketDataAsync("connectionId", "data"), Throws.InstanceOf<ObjectDisposedException>());
+            Assert.That(() => server.RegisterHandler("/url", new WebResourceRequestHandler("response")), Throws.InstanceOf<ObjectDisposedException>());
+            Assert.That(() => server.RegisterHandler("/url", HttpRequestMethod.Get, new WebResourceRequestHandler("response")), Throws.InstanceOf<ObjectDisposedException>());
+            Assert.That(() => server.IgnoreCloseConnectionRequest("connectionId", true), Throws.InstanceOf<ObjectDisposedException>());
+        });
+    }
+
+    [Test]
+    public async Task TestStopAsyncWhenStoppingListenerThrowsObjectDisposedException()
+    {
+        await using SocketAcceptanceTestServer server = new();
+        await server.StartAsync();
+        server.ExceptionToThrowInAccept = new ObjectDisposedException(nameof(Server));
+        Assert.That(async () => await server.StopAsync(), Throws.Nothing);
+    }
+
+    [Test]
+    public async Task TestStopAsyncWhenStoppingListenerThrowsSocketException()
+    {
+        await using SocketAcceptanceTestServer server = new();
+        await server.StartAsync();
+        server.ExceptionToThrowInAccept = new SocketException();
+        Assert.That(async () => await server.StopAsync(), Throws.Nothing);
+    }
+
+    [Test]
+    public async Task TestStopAsyncWhenStoppingListenerThrowsOperationCanceledException()
+    {
+        await using SocketAcceptanceTestServer server = new();
+        await server.StartAsync();
+        server.ExceptionToThrowInAccept = new OperationCanceledException();
+        Assert.That(async () => await server.StopAsync(), Throws.Nothing);
     }
 
     [Test]
     public async Task TestStopAsyncAwaitsConnectionTeardown()
     {
+        await using Server server = new();
+        await server.StartAsync();
+
         // StopAsync() should not return until OnClientDisconnected has fired for every
         // active connection, requiring no additional Task.Delay or manual event waiting.
         ManualResetEventSlim connectionEvent = new(false);
-        server!.OnClientConnected.AddObserver((e) =>
+        server.OnClientConnected.AddObserver((e) =>
         {
             connectionEvent.Set();
         });
@@ -155,10 +238,10 @@ public class ServerTests
         });
 
         using ClientWebSocket socket = new();
-        await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
+        await socket.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
         connectionEvent.Wait(TimeSpan.FromSeconds(1));
 
-        await this.server.StopAsync();
+        await server.StopAsync();
 
         Assert.That(disconnectedEventFired, Is.True);
     }
@@ -166,18 +249,21 @@ public class ServerTests
     [Test]
     public async Task TestServerClosesConnectionAcceptedAfterStop()
     {
+        await using Server server = new();
+        await server.StartAsync();
+
         // Use OnSocketAccepted to call Stop() before we check IsAcceptingConnections,
         // deterministically exercising the else branch in AcceptConnectionsAsync that
         // closes any socket accepted once isAcceptingConnections is false.
         Task stopTask;
         ManualResetEventSlim connectionProcessed = new(false);
-        this.server!.OnSocketAccepted.AddObserver((e) =>
+        server.OnSocketAccepted.AddObserver((e) =>
         {
-            stopTask = this.server!.StopAsync();
+            stopTask = server.StopAsync();
             connectionProcessed.Set();
         });
         using TcpClient tcpClient = new();
-        await tcpClient.ConnectAsync(IPAddress.Loopback, server!.Port);
+        await tcpClient.ConnectAsync(IPAddress.Loopback, server.Port);
         connectionProcessed.Wait(TimeSpan.FromSeconds(2));
 
         NetworkStream stream = tcpClient.GetStream();
@@ -205,11 +291,14 @@ public class ServerTests
     [Test]
     public async Task TestServerDoesNotSendBadRequestOnPeerDisconnect()
     {
+        await using Server server = new();
+        await server.StartAsync();
+
         // A client that connects and immediately closes the TCP connection causes
         // ReceiveDataInternal to return zero bytes. Before CQ-1 was fixed, this
         // triggered a spurious BadRequest response attempt on the closed socket.
         ManualResetEventSlim disconnectedEvent = new(false);
-        server!.OnClientDisconnected.AddObserver((e) =>
+        server.OnClientDisconnected.AddObserver((e) =>
         {
             disconnectedEvent.Set();
         });
@@ -235,24 +324,30 @@ public class ServerTests
     [Test]
     public async Task TestServerCanRespondToWebSocketCloseRequest()
     {
+        await using Server server = new();
+        await server.StartAsync();
+
         ClientWebSocket socket = new();
-        await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
+        await socket.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
         await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
     }
 
     [Test]
     public async Task TestServerCanSimulateIgnoringWebSocketCloseRequest()
     {
+        await using Server server = new();
+        await server.StartAsync();
+
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;
-        server!.OnClientConnected.AddObserver((e) =>
+        server.OnClientConnected.AddObserver((e) =>
         {
             connectionId = e.ConnectionId;
             connectionEvent.Set();
         });
 
         ClientWebSocket socket = new();
-        await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
+        await socket.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
         connectionEvent.Wait(TimeSpan.FromSeconds(1));
 
         server.IgnoreCloseConnectionRequest(connectionId, true);
@@ -266,16 +361,19 @@ public class ServerTests
     [Test]
     public async Task TestServerCanSimulateReenablingWebSocketCloseRequest()
     {
+        await using Server server = new();
+        await server.StartAsync();
+
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;
-        server!.OnClientConnected.AddObserver((e) =>
+        server.OnClientConnected.AddObserver((e) =>
         {
             connectionId = e.ConnectionId;
             connectionEvent.Set();
         });
 
         ClientWebSocket socket = new();
-        await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
+        await socket.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
         connectionEvent.Wait(TimeSpan.FromSeconds(1));
 
         server.IgnoreCloseConnectionRequest(connectionId, true);
@@ -287,17 +385,20 @@ public class ServerTests
     [Test]
     public async Task TestServerCanInitiateWebSocketCloseRequest()
     {
+        await using Server server = new();
+        await server.StartAsync();
+
         ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(1024, 1024);
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;
-        server!.OnClientConnected.AddObserver((e) =>
+        server.OnClientConnected.AddObserver((e) =>
         {
             connectionId = e.ConnectionId;
             connectionEvent.Set();
         });
 
         using ClientWebSocket socket = new();
-        await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
+        await socket.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
         connectionEvent.Wait(TimeSpan.FromSeconds(1));
 
         Task<WebSocketReceiveResult> receiveTask = Task.Run(() => socket.ReceiveAsync(buffer, CancellationToken.None));
@@ -313,12 +414,15 @@ public class ServerTests
     [Test]
     public async Task TestServerCanCompleteWebSocketCloseHandshakeWhenInitiatingClose()
     {
+        await using Server server = new();
+        await server.StartAsync();
+
         // Verifies RFC 6455 §7.1.2: after the server initiates close (CloseSent state),
         // receiving the client's close acknowledgement must NOT trigger a second close frame.
         ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(1024, 1024);
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;
-        server!.OnClientConnected.AddObserver((e) =>
+        server.OnClientConnected.AddObserver((e) =>
         {
             connectionId = e.ConnectionId;
             connectionEvent.Set();
@@ -343,7 +447,7 @@ public class ServerTests
         });
 
         using ClientWebSocket socket = new();
-        await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
+        await socket.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
         connectionEvent.Wait(TimeSpan.FromSeconds(1));
 
         Task<WebSocketReceiveResult> receiveTask = Task.Run(() => socket.ReceiveAsync(buffer, CancellationToken.None));
@@ -367,22 +471,25 @@ public class ServerTests
     [Test]
     public async Task TestServerCanReceiveWebSocketDataFromClient()
     {
+        await using Server server = new();
+        await server.StartAsync();
+
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;
-        server!.OnClientConnected.AddObserver((e) =>
+        server.OnClientConnected.AddObserver((e) =>
         {
             connectionId = e.ConnectionId;
             connectionEvent.Set();
         });
 
         using ClientWebSocket socket = new();
-        await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
+        await socket.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
         connectionEvent.Wait(TimeSpan.FromSeconds(1));
 
         ManualResetEventSlim syncEvent = new(false);
         string? receivedData = null;
         string receivedDataConnectionId = string.Empty;
-        this.server!.OnDataReceived.AddObserver((e) =>
+        server.OnDataReceived.AddObserver((e) =>
         {
             receivedDataConnectionId = e.ConnectionId;
             receivedData = e.Data;
@@ -403,28 +510,31 @@ public class ServerTests
     [Test]
     public async Task TestServerCanReceiveDataFromMultipleSimultaneousConnections()
     {
+        await using Server server = new();
+        await server.StartAsync();
+
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;
-        this.server!.OnClientConnected.AddObserver((e) =>
+        server.OnClientConnected.AddObserver((e) =>
         {
             connectionId = e.ConnectionId;
             connectionEvent.Set();
         });
 
         using ClientWebSocket socket1 = new();
-        await socket1.ConnectAsync(new Uri($"ws://localhost:{this.server.Port}"), CancellationToken.None);
+        await socket1.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
         connectionEvent.Wait(TimeSpan.FromSeconds(1));
         string connectionId1 = connectionId;
 
         connectionEvent.Reset();
         using ClientWebSocket socket2 = new();
-        await socket2.ConnectAsync(new Uri($"ws://localhost:{this.server.Port}"), CancellationToken.None);
+        await socket2.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
         connectionEvent.Wait(TimeSpan.FromSeconds(1));
         string connectionId2 = connectionId;
 
         ManualResetEventSlim receivedDataEvent = new(false);
         List<string> receivedData = new();
-        this.server.OnDataReceived.AddObserver((e) =>
+        server.OnDataReceived.AddObserver((e) =>
         {
             receivedData.Add($"{e.ConnectionId}: {e.Data}");
             receivedDataEvent.Set();
@@ -444,13 +554,16 @@ public class ServerTests
     [Test]
     public async Task TestServerCanReceiveDataOnBufferBoundary()
     {
-        int dataLength = 2 * server!.BufferSize;
+        await using Server server = new();
+        await server.StartAsync();
+
+        int dataLength = 2 * server.BufferSize;
         ManualResetEventSlim syncEvent = new(false);
         string? receivedData = null;
         string data = new('a', dataLength);
         using ClientWebSocket socket = new();
-        await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
-        this.server!.OnDataReceived.AddObserver((e) =>
+        await socket.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
+        server.OnDataReceived.AddObserver((e) =>
         {
             receivedData = e.Data;
             syncEvent.Set();
@@ -467,6 +580,9 @@ public class ServerTests
     [Test]
     public async Task TestServerCanReceiveDataOnMediumLargeMessage()
     {
+        await using Server server = new();
+        await server.StartAsync();
+
         // 40,000 bytes falls in the two-byte WebSocket length range (126–65535) and
         // above the signed-short boundary (32767), exercising the unsigned 16-bit path.
         int dataLength = 40000;
@@ -474,8 +590,8 @@ public class ServerTests
         string? receivedData = null;
         string data = new('a', dataLength);
         using ClientWebSocket socket = new();
-        await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
-        this.server!.OnDataReceived.AddObserver((e) =>
+        await socket.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
+        server.OnDataReceived.AddObserver((e) =>
         {
             receivedData = e.Data;
             syncEvent.Set();
@@ -492,13 +608,16 @@ public class ServerTests
     [Test]
     public async Task TestServerCanReceiveDataOnVeryLongMessage()
     {
+        await using Server server = new();
+        await server.StartAsync();
+
         int dataLength = 70000;
         ManualResetEventSlim syncEvent = new(false);
         string? receivedData = null;
         string data = new('a', dataLength);
         using ClientWebSocket socket = new();
-        await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
-        this.server!.OnDataReceived.AddObserver((e) =>
+        await socket.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
+        server.OnDataReceived.AddObserver((e) =>
         {
             receivedData = e.Data;
             syncEvent.Set();
@@ -515,21 +634,24 @@ public class ServerTests
     [Test]
     public async Task TestServerCanSendWebSocketDataToClient()
     {
+        await using Server server = new();
+        await server.StartAsync();
+
         ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(1024, 1024);
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;
-        server!.OnClientConnected.AddObserver((e) =>
+        server.OnClientConnected.AddObserver((e) =>
         {
             connectionId = e.ConnectionId;
             connectionEvent.Set();
         });
 
         using ClientWebSocket socket = new();
-        await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
+        await socket.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
         connectionEvent.Wait(TimeSpan.FromSeconds(1));
         Task<WebSocketReceiveResult> receiveTask = Task.Run(() => socket.ReceiveAsync(buffer, CancellationToken.None));
 
-        await server.SendDataAsync(connectionId, "Sent to client");
+        await server.SendWebSocketDataAsync(connectionId, "Sent to client");
         await receiveTask;
         WebSocketReceiveResult result = receiveTask.Result;
         string receivedData = Encoding.UTF8.GetString(buffer.Array!, 0, result.Count);
@@ -545,9 +667,12 @@ public class ServerTests
     [Test]
     public async Task TestServerCanSendDataToMultipleSimultaneousConnections()
     {
+        await using Server server = new();
+        await server.StartAsync();
+
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;
-        server!.OnClientConnected.AddObserver((e) =>
+        server.OnClientConnected.AddObserver((e) =>
         {
             connectionId = e.ConnectionId;
             connectionEvent.Set();
@@ -555,7 +680,7 @@ public class ServerTests
 
         ArraySegment<byte> buffer1 = WebSocket.CreateClientBuffer(1024, 1024);
         using ClientWebSocket socket1 = new();
-        await socket1.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
+        await socket1.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
         connectionEvent.Wait(TimeSpan.FromSeconds(1));
         string connectionId1 = connectionId;
         Task<WebSocketReceiveResult> receiveTask1 = Task.Run(() => socket1.ReceiveAsync(buffer1, CancellationToken.None));
@@ -564,13 +689,13 @@ public class ServerTests
 
         ArraySegment<byte> buffer2 = WebSocket.CreateClientBuffer(1024, 1024);
         using ClientWebSocket socket2 = new();
-        await socket2.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
+        await socket2.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
         connectionEvent.Wait(TimeSpan.FromSeconds(1));
         string connectionId2 = connectionId;
         Task<WebSocketReceiveResult> receiveTask2 = Task.Run(() => socket2.ReceiveAsync(buffer2, CancellationToken.None));
 
-        await server.SendDataAsync(connectionId1, "Sent to client 1");
-        await server.SendDataAsync(connectionId2, "Sent to client 2");
+        await server.SendWebSocketDataAsync(connectionId1, "Sent to client 1");
+        await server.SendWebSocketDataAsync(connectionId2, "Sent to client 2");
         await Task.WhenAll(receiveTask1, receiveTask2);
         WebSocketReceiveResult result1 = receiveTask1.Result;
         string receivedData1 = Encoding.UTF8.GetString(buffer1.Array!, 0, result1.Count);
@@ -591,23 +716,26 @@ public class ServerTests
     [Test]
     public async Task TestServerCanSendDataOnBufferBoundary()
     {
-        int dataLength = 2 * server!.BufferSize;
+        await using Server server = new();
+        await server.StartAsync();
+
+        int dataLength = 2 * server.BufferSize;
         ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(dataLength, dataLength);
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;
-        server!.OnClientConnected.AddObserver((e) =>
+        server.OnClientConnected.AddObserver((e) =>
         {
             connectionId = e.ConnectionId;
             connectionEvent.Set();
         });
 
         using ClientWebSocket socket = new();
-        await socket.ConnectAsync(new Uri($"ws://localhost:{this.server.Port}"), CancellationToken.None);
+        await socket.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
         connectionEvent.Wait(TimeSpan.FromSeconds(1));
         Task<WebSocketReceiveResult> receiveTask = Task.Run(() => socket.ReceiveAsync(buffer, CancellationToken.None));
 
         string data = new('a', dataLength);
-        await server.SendDataAsync(connectionId, data);
+        await server.SendWebSocketDataAsync(connectionId, data);
         await receiveTask;
         WebSocketReceiveResult result = receiveTask.Result;
         string receivedData = Encoding.UTF8.GetString(buffer.Array!, 0, result.Count);
@@ -623,25 +751,28 @@ public class ServerTests
     [Test]
     public async Task TestServerCanSendDataOnMediumLargeMessage()
     {
+        await using Server server = new();
+        await server.StartAsync();
+
         // 40,000 bytes falls in the two-byte WebSocket length range (126–65535) and
         // above the signed-short boundary (32767), exercising the unsigned 16-bit path.
         int dataLength = 40000;
         ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(dataLength, dataLength);
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;
-        server!.OnClientConnected.AddObserver((e) =>
+        server.OnClientConnected.AddObserver((e) =>
         {
             connectionId = e.ConnectionId;
             connectionEvent.Set();
         });
 
         using ClientWebSocket socket = new();
-        await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
+        await socket.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
         connectionEvent.Wait(TimeSpan.FromSeconds(1));
         Task<WebSocketReceiveResult> receiveTask = Task.Run(() => socket.ReceiveAsync(buffer, CancellationToken.None));
 
         string data = new('a', dataLength);
-        await server.SendDataAsync(connectionId, data);
+        await server.SendWebSocketDataAsync(connectionId, data);
         WebSocketReceiveResult result = await receiveTask.WaitAsync(TimeSpan.FromSeconds(5));
         string receivedData = Encoding.UTF8.GetString(buffer.Array!, 0, result.Count);
 
@@ -656,25 +787,28 @@ public class ServerTests
     [Test]
     public async Task TestServerCanSendDataOnVeryLongMessage()
     {
+        await using Server server = new();
+        await server.StartAsync();
+
         // Sending 1 MB (1024 * 1024 bytes) of text so as to make the send operation not finish
         // synchronously. This number may need to change if the values require it.
         int dataLength = 1048576;
         ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(dataLength, dataLength);
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;
-        server!.OnClientConnected.AddObserver((e) =>
+        server.OnClientConnected.AddObserver((e) =>
         {
             connectionId = e.ConnectionId;
             connectionEvent.Set();
         });
 
         using ClientWebSocket socket = new();
-        await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
+        await socket.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
         connectionEvent.Wait(TimeSpan.FromSeconds(1));
         Task<WebSocketReceiveResult> receiveTask = Task.Run(() => socket.ReceiveAsync(buffer, CancellationToken.None));
 
         string data = new('a', dataLength);
-        await server.SendDataAsync(connectionId, data);
+        await server.SendWebSocketDataAsync(connectionId, data);
         WebSocketReceiveResult result = await receiveTask.WaitAsync(TimeSpan.FromSeconds(5));
         string receivedData = Encoding.UTF8.GetString(buffer.Array!, 0, result.Count);
 
@@ -689,59 +823,68 @@ public class ServerTests
     [Test]
     public async Task TestServerLogsIncomingAndOutgoingDataForHttpTraffic()
     {
+        await using Server server = new();
+        await server.StartAsync();
+
         List<string> expectedLog = new()
         {
             "Client connected",
         };
         ManualResetEvent syncEvent = new(false);
-        this.server!.OnDataSent.AddObserver((e) =>
+        server.OnDataSent.AddObserver((e) =>
         {
             expectedLog.Add($"SEND {e.ByteCount} bytes");
             syncEvent.Set();
         });
-        this.server!.OnDataReceived.AddObserver((e) =>
+        server.OnDataReceived.AddObserver((e) =>
         {
             expectedLog.Add($"RECV {e.ByteCount} bytes");
         });
-        this.server!.RegisterHandler("/", new WebResourceRequestHandler("hello world"));
+        server.RegisterHandler("/", new WebResourceRequestHandler("hello world"));
         using HttpClient client = new();
         HttpResponseMessage responseMessage = await client.GetAsync($"http://localhost:{server.Port}/");
         bool eventRaised = syncEvent.WaitOne(TimeSpan.FromMilliseconds(200));
         Assert.That(eventRaised, Is.True);
         string responseContent = await responseMessage.Content.ReadAsStringAsync();
-        Assert.That(this.server.Log, Is.EquivalentTo(expectedLog));
+        Assert.That(server.Log, Is.EquivalentTo(expectedLog));
     }
 
     [Test]
     public async Task TestServerRespondsToMethodsOtherThanGet()
     {
+        await using Server server = new();
+        await server.StartAsync();
+
         List<string> expectedLog = new()
         {
             "Client connected",
         };
         ManualResetEvent syncEvent = new(false);
-        this.server!.OnDataSent.AddObserver((e) =>
+        server.OnDataSent.AddObserver((e) =>
         {
             expectedLog.Add($"SEND {e.ByteCount} bytes");
             syncEvent.Set();
         });
-        this.server!.OnDataReceived.AddObserver((e) =>
+        server.OnDataReceived.AddObserver((e) =>
         {
             expectedLog.Add($"RECV {e.ByteCount} bytes");
         });
-        this.server!.RegisterHandler("/", HttpRequestMethod.Post, new WebResourceRequestHandler("hello world"));
+        server.RegisterHandler("/", HttpRequestMethod.Post, new WebResourceRequestHandler("hello world"));
         using HttpClient client = new();
         HttpResponseMessage responseMessage = await client.PostAsync($"http://localhost:{server.Port}/", null);
         bool eventRaised = syncEvent.WaitOne(TimeSpan.FromMilliseconds(200));
         Assert.That(eventRaised, Is.True);
         string responseContent = await responseMessage.Content.ReadAsStringAsync();
         Assert.That(responseContent, Is.EqualTo("hello world"));
-        Assert.That(this.server.Log, Is.EquivalentTo(expectedLog));
+        Assert.That(server.Log, Is.EquivalentTo(expectedLog));
     }
 
     [Test]
     public async Task TestServerLogsIncomingAndOutgoingDataForWebSocketTraffic()
     {
+        await using Server server = new();
+        await server.StartAsync();
+
         // Expected log includes WebSocket upgrade handshake request.
         // Observers are added before connecting so that the handshake recv/send byte
         // counts are captured alongside the subsequent WebSocket frame byte counts.
@@ -749,7 +892,7 @@ public class ServerTests
 
         ManualResetEventSlim connectionEvent = new(false);
         string connectionId = string.Empty;
-        server!.OnClientConnected.AddObserver((e) =>
+        server.OnClientConnected.AddObserver((e) =>
         {
             connectionId = e.ConnectionId;
             connectionEvent.Set();
@@ -757,19 +900,19 @@ public class ServerTests
 
         ManualResetEventSlim dataReceivedEvent = new(false);
         string? receivedData = null;
-        this.server!.OnDataReceived.AddObserver((e) =>
+        server.OnDataReceived.AddObserver((e) =>
         {
             expectedLog.Add($"RECV {e.ByteCount} bytes");
             receivedData = e.Data;
             dataReceivedEvent.Set();
         });
-        this.server!.OnDataSent.AddObserver((e) =>
+        server.OnDataSent.AddObserver((e) =>
         {
             expectedLog.Add($"SEND {e.ByteCount} bytes");
         });
 
         using ClientWebSocket socket = new();
-        await socket.ConnectAsync(new Uri($"ws://localhost:{this.server!.Port}"), CancellationToken.None);
+        await socket.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
         connectionEvent.Wait(TimeSpan.FromSeconds(1));
 
         // ConnectAsync only returns after the client receives the 101 response, so the
@@ -783,43 +926,55 @@ public class ServerTests
         await socket.SendAsync(Encoding.UTF8.GetBytes("Received from client"), WebSocketMessageType.Text, true, CancellationToken.None);
         bool eventReceived = dataReceivedEvent.Wait(TimeSpan.FromSeconds(3));
         Assert.That(eventReceived, Is.True);
-        await server.SendDataAsync(connectionId, "Sent to client");
+        await server.SendWebSocketDataAsync(connectionId, "Sent to client");
         await receiveTask;
         WebSocketReceiveResult result = receiveTask.Result;
         string sentData = Encoding.UTF8.GetString(buffer.Array!, 0, result.Count);
         Assert.That(receivedData, Is.EqualTo("Received from client"));
         Assert.That(sentData, Is.EqualTo("Sent to client"));
-        Assert.That(this.server.Log, Is.EquivalentTo(expectedLog));
+        Assert.That(server.Log, Is.EquivalentTo(expectedLog));
     }
 
     [Test]
-    public void TestSettingIgnoreCloseRequestForInvalidConnectionIdThrows()
+    public async Task TestSettingIgnoreCloseRequestForInvalidConnectionIdThrows()
     {
-        Assert.That(() => this.server!.IgnoreCloseConnectionRequest("invalidConnectionId", true), Throws.InstanceOf<PinchHitterException>());
+        await using Server server = new();
+        await server.StartAsync();
+
+        Assert.That(() => server.IgnoreCloseConnectionRequest("invalidConnectionId", true), Throws.InstanceOf<PinchHitterException>());
     }
 
     [Test]
-    public void TestDisconnectingForInvalidConnectionIdThrows()
+    public async Task TestDisconnectingForInvalidConnectionIdThrows()
     {
-        Assert.That(async () => await this.server!.DisconnectAsync("invalidConnectionId"), Throws.InstanceOf<PinchHitterException>());
+        await using Server server = new();
+        await server.StartAsync();
+
+        Assert.That(async () => await server.DisconnectAsync("invalidConnectionId"), Throws.InstanceOf<PinchHitterException>());
     }
 
     [Test]
-    public void TestSendingDataForInvalidConnectionIdThrows()
+    public async Task TestSendingDataForInvalidConnectionIdThrows()
     {
-        Assert.That(async () => await this.server!.SendDataAsync("invalidConnectionId", "Sent to client"), Throws.InstanceOf<PinchHitterException>());
+        await using Server server = new();
+        await server.StartAsync();
+
+        Assert.That(async () => await server.SendWebSocketDataAsync("invalidConnectionId", "Sent to client"), Throws.InstanceOf<PinchHitterException>());
     }
 
     [Test]
-    public void TestCannotSetReceiveBufferSizeOnStartedServer()
+    public async Task TestCannotSetReceiveBufferSizeOnStartedServer()
     {
-        Assert.That(() => this.server!.BufferSize = 2048, Throws.InstanceOf<InvalidOperationException>());
+        await using Server server = new();
+        await server.StartAsync();
+
+        Assert.That(() => server.BufferSize = 2048, Throws.InstanceOf<InvalidOperationException>());
     }
 
     [Test]
-    public void TestCanSetReceiveBufferSize()
+    public async Task TestCanSetReceiveBufferSize()
     {
-        Server localServer = new()
+        await using Server localServer = new()
         {
             BufferSize = 8192
         };
@@ -831,6 +986,10 @@ public class ServerTests
     {
         // Find an available port by briefly binding to port 0, then release it
         // before creating the Server so the port number is known in advance.
+        // This is a slight race condition in theory, but in the context of
+        // running tests in a controlled environment, it's unlikely to cause
+        // issues and allows deterministic testing of starting a Server on a
+        // specific port.
         int specificPort;
         using (TcpListener portFinder = new(IPAddress.Loopback, 0))
         {
@@ -839,15 +998,36 @@ public class ServerTests
             portFinder.Stop();
         }
 
-        Server localServer = new(specificPort);
-        try
+        await using Server server = new(specificPort);
+        await server.StartAsync();
+        Assert.That(server.Port, Is.EqualTo(specificPort));
+    }
+
+    private class SocketAcceptanceTestServer : Server
+    {
+        public SocketAcceptanceTestServer()
+            : base()
         {
-            await localServer.StartAsync();
-            Assert.That(localServer.Port, Is.EqualTo(specificPort));
         }
-        finally
+
+        public Exception? ExceptionToThrowInAccept { get; set; } = null;
+
+        protected override async Task<Socket> AcceptSocketAsync()
         {
-            await localServer.StopAsync();
+            try
+            {
+                return await base.AcceptSocketAsync().ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+            }
+
+            if (this.ExceptionToThrowInAccept != null)
+            {
+                throw this.ExceptionToThrowInAccept;
+            }
+
+            throw new InvalidOperationException("No exception specified to throw in AcceptSocketAsync.");
         }
     }
 }

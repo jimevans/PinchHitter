@@ -159,6 +159,55 @@ public class WebSocketFrameTests
         Assert.That(frame.Opcode, Is.EqualTo(WebSocketOpcodeType.Close));
     }
 
+    [Test]
+    public void TestInvalidFrameLengthThrows()
+    {
+        Assert.That(() => WebSocketFrame.Decode(new byte[] { }), Throws.InstanceOf<ArgumentException>());
+        Assert.That(() => WebSocketFrame.Decode(new byte[] { 0x81 }), Throws.InstanceOf<ArgumentException>());
+    }
+
+    [Test]
+    public void TestDecodeTruncatedSingleByteLengthFrameThrows()
+    {
+        // "hello" = 5 bytes; full frame needs 2 (header) + 4 (mask) + 5 (payload) = 11 bytes.
+        // Truncate to 10 bytes (missing 1 payload byte).
+        byte[] fullFrame = BuildMaskedFrame(0x81, Encoding.UTF8.GetBytes("hello"), [0x12, 0x34, 0x56, 0x78]);
+        byte[] truncated = fullFrame[..10];
+
+        Assert.That(() => WebSocketFrame.Decode(truncated), Throws.InstanceOf<ArgumentException>().With.Message.Contain("too short").And.Property("ParamName").EqualTo("buffer"));
+    }
+
+    [Test]
+    public void TestDecodeTruncatedTwoByteLengthFrameThrows()
+    {
+        // 126-byte payload; full frame needs 4 (header) + 4 (mask) + 126 (payload) = 134 bytes.
+        // Truncate to 133 bytes (missing 1 payload byte).
+        byte[] fullFrame = BuildMaskedFrame(0x81, Encoding.UTF8.GetBytes(new string('a', 126)), [0x01, 0x02, 0x03, 0x04]);
+        byte[] truncated = fullFrame[..133];
+
+        Assert.That(() => WebSocketFrame.Decode(truncated), Throws.InstanceOf<ArgumentException>().With.Message.Contain("too short").And.Property("ParamName").EqualTo("buffer"));
+    }
+
+    [Test]
+    public void TestDecodeTruncatedEightByteLengthFrameThrows()
+    {
+        // 65536-byte payload; full frame needs 10 (header) + 4 (mask) + 65536 (payload) = 65550 bytes.
+        // Truncate to 65549 bytes (missing 1 payload byte).
+        byte[] fullFrame = BuildMaskedFrame(0x81, Encoding.UTF8.GetBytes(new string('a', 65536)), [0x01, 0x02, 0x03, 0x04]);
+        byte[] truncated = fullFrame[..65549];
+
+        Assert.That(() => WebSocketFrame.Decode(truncated), Throws.InstanceOf<ArgumentException>().With.Message.Contain("too short").And.Property("ParamName").EqualTo("buffer"));
+    }
+
+    [Test]
+    public void TestDecodeBufferTooShortForMaskThrows()
+    {
+        // Single-byte length path: need at least 6 bytes (2 header + 4 mask). Provide 5.
+        byte[] buffer = new byte[] { 0x81, 0x80, 0x12, 0x34, 0x56 }; // opcode, length=0, partial mask
+
+        Assert.That(() => WebSocketFrame.Decode(buffer), Throws.InstanceOf<ArgumentException>().With.Message.Contain("too short").And.Property("ParamName").EqualTo("buffer"));
+    }
+
     /// <summary>
     /// Builds a masked WebSocket frame in client-to-server wire format.
     /// The length encoding is chosen automatically based on payload size.

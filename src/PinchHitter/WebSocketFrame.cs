@@ -57,6 +57,11 @@ public class WebSocketFrame
     {
         const byte opcodeMask = 0x0F;
         const byte messageLengthMask = 0x7F;
+        if (buffer.Length < 2)
+        {
+            throw new ArgumentException("Buffer is too short to contain a WebSocket frame.", nameof(buffer));
+        }
+
         WebSocketOpcodeType opcode = (WebSocketOpcodeType)(buffer[0] & opcodeMask);
 
         byte messageLengthIndicator = Convert.ToByte(buffer[1] & messageLengthMask);
@@ -84,6 +89,13 @@ public class WebSocketFrame
             // contains the actual length of the message.
             messageLength = messageLengthIndicator;
             keyOffset = 2;
+        }
+
+        // Validate buffer has enough bytes for mask key + payload
+        long payloadStart = keyOffset + 4;
+        if (buffer.Length < payloadStart || buffer.LongLength - payloadStart < messageLength)
+        {
+            throw new ArgumentException("Buffer is too short to contain the complete WebSocket frame.", nameof(buffer));
         }
 
         // Incoming messages across a WebSocket are masked. The masking algorithm

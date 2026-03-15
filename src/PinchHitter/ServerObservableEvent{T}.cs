@@ -90,7 +90,7 @@ public class ServerObservableEvent<T>
     /// </summary>
     /// <param name="handler">A function returning a Task that handles the observed event.</param>
     /// <param name="handlerOptions">
-    /// The options for executing the handler. Defaults to ObservableEventHandlerOptions.None,
+    /// The options for executing the handler. Defaults to <see cref="ServerObservableEventHandlerOptions.None"/>,
     /// meaning the handler will attempt to execute synchronously, awaiting the result of execution.
     /// </param>
     /// <param name="description">An optional description for this observer.</param>

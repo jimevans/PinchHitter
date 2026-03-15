@@ -86,7 +86,7 @@ public abstract class HttpRequestHandler
     }
 
     /// <summary>
-    /// Adds standards HTTP headers to the HTTP response.
+    /// Adds standard HTTP headers to the HTTP response.
     /// </summary>
     /// <param name="response">The HTTP response to which to add the standard HTTP headers.</param>
     protected void AddStandardResponseHeaders(HttpResponse response)

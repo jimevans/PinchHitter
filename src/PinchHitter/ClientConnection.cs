@@ -124,7 +124,6 @@ internal class ClientConnection
     public void StopReceiving()
     {
         this.cancellationTokenSource.Cancel();
-        this.cancellationTokenSource.Dispose();
     }
 
     /// <summary>
@@ -137,7 +136,7 @@ internal class ClientConnection
         if (currentState == WebSocketState.None)
         {
             this.cancellationTokenSource.Cancel();
-       }
+        }
 
         if (currentState == WebSocketState.Open)
         {
@@ -149,9 +148,13 @@ internal class ClientConnection
     /// <summary>
     /// Asynchronously sends data to the client requesting data from this server.
     /// </summary>
-    /// <param name="data">A byte array representing the data to be sent.</param>
+    /// <param name="data">A byte array representing the data to be sent. Must not be <see langword="null"/>.</param>
     /// <returns>The task object representing the asynchronous operation.</returns>
     /// <exception cref="PinchHitterException">Thrown when there is no client socket connected.</exception>
+    /// <remarks>
+    /// This method does not include a check for data being null; it is the responsibility of the caller
+    /// to ensure that data is not null before calling this method.
+    /// </remarks>
     public async Task SendDataAsync(byte[] data)
     {
         // In .NETStandard 2.1, we could simply call Socket.SendAsync,
@@ -189,8 +192,9 @@ internal class ClientConnection
         }
        finally
         {
-            this.clientSocket.Close();
+            this.clientSocket.Dispose();
             await this.onStoppedEvent.NotifyObserversAsync(new ClientConnectionEventArgs(this.connectionId)).ConfigureAwait(false);
+            this.cancellationTokenSource.Dispose();
         }
     }
 
@@ -260,13 +264,13 @@ internal class ClientConnection
 
     private int SendDataInternal(byte[] data)
     {
-        SocketAsyncEventArgs socketAsyncEventArgs = new()
+        using SocketAsyncEventArgs socketAsyncEventArgs = new()
         {
             SocketFlags = SocketFlags.None,
         };
         socketAsyncEventArgs.SetBuffer(data, 0, data.Length);
 
-        ManualResetEventSlim completedEvent = new(false);
+        using ManualResetEventSlim completedEvent = new(false);
         socketAsyncEventArgs.Completed += (sender, e) =>
         {
             completedEvent.Set();
@@ -284,13 +288,13 @@ internal class ClientConnection
     private byte[] ReceiveDataInternal()
     {
         byte[] buffer = new byte[this.bufferSize];
-        SocketAsyncEventArgs socketAsyncEventArgs = new()
+        using SocketAsyncEventArgs socketAsyncEventArgs = new()
         {
             SocketFlags = SocketFlags.None,
         };
         socketAsyncEventArgs.SetBuffer(buffer, 0, buffer.Length);
 
-        ManualResetEventSlim completedEvent = new(false);
+        using ManualResetEventSlim completedEvent = new(false);
         socketAsyncEventArgs.Completed += (sender, e) =>
         {
             completedEvent.Set();
