@@ -18,15 +18,15 @@ This project is not intended to be a fully-featured, production-ready web server
 not support many of the features of a modern web server.
 
 ## Getting Started
-To use the server, you can instantiate it and call the `Start()` method. You can have the
+To use the server, you can instantiate it and call the `StartAsync()` method. You can have the
 server instance return HTML traffic to a browser.
 
 ```csharp
 using PinchHitter;
 
 // Start a new server to listen on a random port.
-Server server = new();
-server.Start();
+await using Server server = new();
+await server.StartAsync();
 
 // Register some content to be returned when a URL is browsed.
 server.RegisterHandler("/index.html", new WebResourceRequestHandler(WebContent.AsHtmlDocument(
@@ -42,7 +42,7 @@ string responseContent = await responseMessage.Content.ReadAsStringAsync();
 Console.WriteLine(responseContent);
 
 // Stop the server from listening to incoming requests.
-server.Stop();
+await server.StopAsync();
 ```
 
 The PinchHitter server also supports the WebSocket protocol to allow you to mock activity for testing
@@ -54,8 +54,8 @@ using System.Text;
 using PinchHitter;
 
 // Start a new server to listen on a random port.
-Server server = new();
-server.Start();
+await using Server server = new();
+await server.StartAsync();
 
 // Set up an event handler for when clients connect to
 // this server.
@@ -108,7 +108,7 @@ Task<WebSocketReceiveResult> clientReceiveTask =
 
 // Send data from the server to the client, and wait for
 // the client receive task to complete.
-await server.SendDataAsync(connectionId, "Hello back from the PinchHitter server");
+await server.SendWebSocketDataAsync(connectionId, "Hello back from the PinchHitter server");
 await clientReceiveTask;
 WebSocketReceiveResult result = clientReceiveTask.Result;
 string dataSentToClient =
@@ -116,7 +116,7 @@ string dataSentToClient =
 Console.WriteLine($"Data sent to client: {dataSentToClient}");
 
 // Stop the server from listening to WebSocket data.
-server.Stop();
+await server.StopAsync();
 ```
 
 ## Development
