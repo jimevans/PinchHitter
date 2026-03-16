@@ -6,7 +6,6 @@
 namespace PinchHitter;
 
 using System.Buffers.Binary;
-using System.Text;
 
 /// <summary>
 /// Represents a data frame for the WebSocket protocol.
@@ -113,27 +112,51 @@ public class WebSocketFrame
     }
 
     /// <summary>
-    /// Encodes data to a WebSocket frame.
+    /// Encodes binary data to a WebSocket frame.
     /// </summary>
-    /// <param name="data">The string to encode.</param>
-    /// <param name="opcode">The opcode of the frame to encode.</param>
+    /// <param name="data">The binary data to encode.</param>
+    /// <param name="opcode">The opcode of the frame to encode. Must be <see cref="WebSocketOpcodeType.Text"/>, <see cref="WebSocketOpcodeType.Binary"/>, or <see cref="WebSocketOpcodeType.Close"/>.</param>
     /// <returns>The WebSocket frame containing the encoded data.</returns>
-    public static WebSocketFrame Encode(string data, WebSocketOpcodeType opcode = WebSocketOpcodeType.Text)
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="data"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="opcode"/> is not <see cref="WebSocketOpcodeType.Text"/>, <see cref="WebSocketOpcodeType.Binary"/>, or <see cref="WebSocketOpcodeType.Close"/>.</exception>
+    /// <remarks>
+    /// <para>
+    /// Convenience overloads for encoding text data as text WebSocket frames are intentionally not provided.
+    /// The WebSocket protocol specifies that text frames must be encoded in UTF-8, and this library does not
+    /// want to make assumptions about the encoding of text data. Consumers of this library can easily encode
+    /// text data to UTF-8 byte arrays before calling this method, and this approach avoids unnecessary
+    /// encoding and decoding of text data in cases where consumers have their own preferred text encoding
+    /// or are already working with text data as byte arrays.
+    /// </para>
+    /// <para>
+    /// The WebSocket protocol specifies that close frames may contain a two-byte status code
+    /// and a UTF-8 encoded reason, but in practice, this implementation follows many other
+    /// existing implementations, and elides this additional information. Given the purpose of
+    /// this library, this is a reasonable choice. Accordingly, the <paramref name="data"/>
+    /// parameter is ignored when encoding close frames.
+    /// </para>
+    /// </remarks>
+    public static WebSocketFrame Encode(byte[] data, WebSocketOpcodeType opcode = WebSocketOpcodeType.Binary)
     {
-        byte opcodeByte = Convert.ToByte(Convert.ToByte(opcode) | ParityBit);
-        if (opcode == WebSocketOpcodeType.Close)
+        if (data is null)
         {
-            // NOTE: Hard code the close frame data. The WebSocket protocol
-            // specifes that close frames may contain an two-byte status code
-            // and a UTF-8 encoded reason, but in practice, this
-            // implementation, follows many other exsiting implementations,
-            // and elides this additional information. Given the purpose
-            // of this library, this is a reasonable choice.
-            return new WebSocketFrame(opcode, new byte[] { opcodeByte, 0x00 });
+            throw new ArgumentNullException(nameof(data));
         }
 
-        byte[] dataBytes = Encoding.UTF8.GetBytes(data);
-        long messageLength = dataBytes.LongLength;
+        if (opcode != WebSocketOpcodeType.Text && opcode != WebSocketOpcodeType.Binary && opcode != WebSocketOpcodeType.Close)
+        {
+            throw new ArgumentException("Text, Binary, or Close opcode is required for byte array encoding.", nameof(opcode));
+        }
+
+        if (opcode == WebSocketOpcodeType.Close)
+        {
+            // NOTE: Hard code the close frame data. Additional optional data
+            // for close frames are ignored, as documented above.
+            return new WebSocketFrame(opcode, new byte[] { 0x88, 0x00 });
+        }
+
+        byte opcodeByte = Convert.ToByte(Convert.ToByte(opcode) | ParityBit);
+        long messageLength = data.LongLength;
 
         byte[] frameHeader = new byte[10];
         frameHeader[0] = opcodeByte;
@@ -164,7 +187,7 @@ public class WebSocketFrame
 
         byte[] buffer = new byte[dataOffset + messageLength];
         Array.Copy(frameHeader, buffer, dataOffset);
-        dataBytes.CopyTo(buffer, dataOffset);
+        data.CopyTo(buffer, dataOffset);
         return new WebSocketFrame(opcode, buffer);
     }
 }

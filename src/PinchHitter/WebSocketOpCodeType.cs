@@ -27,10 +27,6 @@ public enum WebSocketOpcodeType
     /// <summary>
     /// Denotes a binary code.
     /// </summary>
-    /// <remarks>
-    /// This opcode is used for binary data, but is not yet supported by this implementation.
-    /// Implementation may be added in a future release.
-    /// </remarks>
     Binary = 2,
 
     /// <summary>

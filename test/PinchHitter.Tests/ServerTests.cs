@@ -227,6 +227,7 @@ public class ServerTests
             Assert.That(async () => await server.StartAsync(), Throws.InstanceOf<ObjectDisposedException>());
             Assert.That(async () => await server.StopAsync(), Throws.InstanceOf<ObjectDisposedException>());
             Assert.That(async () => await server.SendWebSocketDataAsync("connectionId", "data"), Throws.InstanceOf<ObjectDisposedException>());
+            Assert.That(async () => await server.SendWebSocketDataAsync("connectionId", new byte[] { 0x01, 0x02 }), Throws.InstanceOf<ObjectDisposedException>());
             Assert.That(() => server.RegisterHandler("/url", new WebResourceRequestHandler("response")), Throws.InstanceOf<ObjectDisposedException>());
             Assert.That(() => server.RegisterHandler("/url", HttpRequestMethod.Get, new WebResourceRequestHandler("response")), Throws.InstanceOf<ObjectDisposedException>());
             Assert.That(() => server.IgnoreCloseConnectionRequest("connectionId", true), Throws.InstanceOf<ObjectDisposedException>());
@@ -708,6 +709,202 @@ public class ServerTests
     }
 
     [Test]
+    public async Task TestServerCanSendBinaryWebSocketDataToClient()
+    {
+        byte[] data = [0x00, 0x01, 0x02, 0xFF, 0xFE];
+        ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(1024, 1024);
+        ManualResetEventSlim connectionEvent = new(false);
+        string connectionId = string.Empty;
+        await using Server server = new();
+        await server.StartAsync();
+        server.OnClientConnected.AddObserver((e) =>
+        {
+            connectionId = e.ConnectionId;
+            connectionEvent.Set();
+        });
+
+        using ClientWebSocket socket = new();
+        await socket.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
+        connectionEvent.Wait(TimeSpan.FromSeconds(1));
+        Task<WebSocketReceiveResult> receiveTask = Task.Run(() => socket.ReceiveAsync(buffer, CancellationToken.None));
+
+        await server.SendWebSocketDataAsync(connectionId, data);
+        await receiveTask;
+        WebSocketReceiveResult result = receiveTask.Result;
+        byte[] receivedData = buffer.Array!.AsSpan(0, result.Count).ToArray();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.MessageType, Is.EqualTo(WebSocketMessageType.Binary));
+            Assert.That(receivedData, Is.EqualTo(data));
+        });
+    }
+
+    [Test]
+    public async Task TestServerCanSendBinaryDataToMultipleSimultaneousConnections()
+    {
+        byte[] data1 = [0x01, 0x02, 0x03];
+        byte[] data2 = [0x04, 0x05, 0x06];
+        await using Server server = new();
+        await server.StartAsync();
+
+        ManualResetEventSlim connectionEvent = new(false);
+        string connectionId = string.Empty;
+        server.OnClientConnected.AddObserver((e) =>
+        {
+            connectionId = e.ConnectionId;
+            connectionEvent.Set();
+        });
+
+        ArraySegment<byte> buffer1 = WebSocket.CreateClientBuffer(1024, 1024);
+        using ClientWebSocket socket1 = new();
+        await socket1.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
+        connectionEvent.Wait(TimeSpan.FromSeconds(1));
+        string connectionId1 = connectionId;
+        Task<WebSocketReceiveResult> receiveTask1 = Task.Run(() => socket1.ReceiveAsync(buffer1, CancellationToken.None));
+
+        connectionEvent.Reset();
+
+        ArraySegment<byte> buffer2 = WebSocket.CreateClientBuffer(1024, 1024);
+        using ClientWebSocket socket2 = new();
+        await socket2.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
+        connectionEvent.Wait(TimeSpan.FromSeconds(1));
+        string connectionId2 = connectionId;
+        Task<WebSocketReceiveResult> receiveTask2 = Task.Run(() => socket2.ReceiveAsync(buffer2, CancellationToken.None));
+
+        await server.SendWebSocketDataAsync(connectionId1, data1);
+        await server.SendWebSocketDataAsync(connectionId2, data2);
+        await Task.WhenAll(receiveTask1, receiveTask2);
+        WebSocketReceiveResult result1 = receiveTask1.Result;
+        byte[] receivedData1 = buffer1.Array!.AsSpan(0, result1.Count).ToArray();
+        WebSocketReceiveResult result2 = receiveTask2.Result;
+        byte[] receivedData2 = buffer2.Array!.AsSpan(0, result2.Count).ToArray();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result1.MessageType, Is.EqualTo(WebSocketMessageType.Binary));
+            Assert.That(receivedData1, Is.EqualTo(data1));
+            Assert.That(result2.MessageType, Is.EqualTo(WebSocketMessageType.Binary));
+            Assert.That(receivedData2, Is.EqualTo(data2));
+        });
+    }
+
+    [Test]
+    public async Task TestServerCanSendBinaryDataOnBufferBoundary()
+    {
+        await using Server server = new();
+        await server.StartAsync();
+
+        int dataLength = 2 * server.BufferSize;
+        byte[] data = new byte[dataLength];
+        for (int i = 0; i < dataLength; i++)
+        {
+            data[i] = (byte)(i % 256);
+        }
+
+        ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(dataLength, dataLength);
+        ManualResetEventSlim connectionEvent = new(false);
+        string connectionId = string.Empty;
+        server.OnClientConnected.AddObserver((e) =>
+        {
+            connectionId = e.ConnectionId;
+            connectionEvent.Set();
+        });
+
+        using ClientWebSocket socket = new();
+        await socket.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
+        connectionEvent.Wait(TimeSpan.FromSeconds(1));
+        Task<WebSocketReceiveResult> receiveTask = Task.Run(() => socket.ReceiveAsync(buffer, CancellationToken.None));
+
+        await server.SendWebSocketDataAsync(connectionId, data);
+        await receiveTask;
+        WebSocketReceiveResult result = receiveTask.Result;
+        byte[] receivedData = buffer.Array!.AsSpan(0, result.Count).ToArray();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.MessageType, Is.EqualTo(WebSocketMessageType.Binary));
+            Assert.That(receivedData, Is.EqualTo(data));
+        });
+    }
+
+    [Test]
+    public async Task TestServerCanSendBinaryDataOnMediumLargeMessage()
+    {
+        await using Server server = new();
+        await server.StartAsync();
+
+        int dataLength = 40000;
+        byte[] data = new byte[dataLength];
+        for (int i = 0; i < dataLength; i++)
+        {
+            data[i] = (byte)(i % 256);
+        }
+
+        ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(dataLength, dataLength);
+        ManualResetEventSlim connectionEvent = new(false);
+        string connectionId = string.Empty;
+        server.OnClientConnected.AddObserver((e) =>
+        {
+            connectionId = e.ConnectionId;
+            connectionEvent.Set();
+        });
+
+        using ClientWebSocket socket = new();
+        await socket.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
+        connectionEvent.Wait(TimeSpan.FromSeconds(1));
+        Task<WebSocketReceiveResult> receiveTask = Task.Run(() => socket.ReceiveAsync(buffer, CancellationToken.None));
+
+        await server.SendWebSocketDataAsync(connectionId, data);
+        WebSocketReceiveResult result = await receiveTask.WaitAsync(TimeSpan.FromSeconds(5));
+        byte[] receivedData = buffer.Array!.AsSpan(0, result.Count).ToArray();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.MessageType, Is.EqualTo(WebSocketMessageType.Binary));
+            Assert.That(receivedData, Is.EqualTo(data));
+        });
+    }
+
+    [Test]
+    public async Task TestServerCanSendBinaryDataOnVeryLongMessage()
+    {
+        await using Server server = new();
+        await server.StartAsync();
+
+        int dataLength = 1048576;
+        byte[] data = new byte[dataLength];
+        for (int i = 0; i < dataLength; i++)
+        {
+            data[i] = (byte)(i % 256);
+        }
+
+        ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(dataLength, dataLength);
+        ManualResetEventSlim connectionEvent = new(false);
+        string connectionId = string.Empty;
+        server.OnClientConnected.AddObserver((e) =>
+        {
+            connectionId = e.ConnectionId;
+            connectionEvent.Set();
+        });
+
+        using ClientWebSocket socket = new();
+        await socket.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
+        connectionEvent.Wait(TimeSpan.FromSeconds(1));
+        Task<WebSocketReceiveResult> receiveTask = Task.Run(() => socket.ReceiveAsync(buffer, CancellationToken.None));
+
+        await server.SendWebSocketDataAsync(connectionId, data);
+        WebSocketReceiveResult result = await receiveTask.WaitAsync(TimeSpan.FromSeconds(5));
+        byte[] receivedData = buffer.Array!.AsSpan(0, result.Count).ToArray();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.MessageType, Is.EqualTo(WebSocketMessageType.Binary));
+            Assert.That(receivedData, Is.EqualTo(data));
+        });
+    }
+
+    [Test]
     public async Task TestServerCanSendDataToMultipleSimultaneousConnections()
     {
         await using Server server = new();
@@ -1002,7 +1199,11 @@ public class ServerTests
         await using Server server = new();
         await server.StartAsync();
 
-        Assert.That(async () => await server.SendWebSocketDataAsync("invalidConnectionId", "Sent to client"), Throws.InstanceOf<PinchHitterException>());
+        Assert.Multiple(() =>
+        {
+            Assert.That(async () => await server.SendWebSocketDataAsync("invalidConnectionId", "Sent to client"), Throws.InstanceOf<PinchHitterException>());
+            Assert.That(async () => await server.SendWebSocketDataAsync("invalidConnectionId", new byte[] { 0x01, 0x02, 0x03 }), Throws.InstanceOf<PinchHitterException>());
+        });
     }
 
     [Test]

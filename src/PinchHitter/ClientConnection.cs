@@ -275,7 +275,7 @@ internal class ClientConnection
 
     private async Task SendCloseFrameAsync(string message)
     {
-        WebSocketFrame closeFrame = WebSocketFrame.Encode(message, WebSocketOpcodeType.Close);
+        WebSocketFrame closeFrame = WebSocketFrame.Encode(Encoding.UTF8.GetBytes(message), WebSocketOpcodeType.Close);
         await this.SendDataAsync(closeFrame.Data).ConfigureAwait(false);
     }
 }

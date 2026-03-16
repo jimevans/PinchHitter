@@ -15,7 +15,7 @@ public class WebSocketFrameTests
     public void TestCanEncodeShortTextFrame()
     {
         // "hello" = 5 bytes, fits in single-byte length (≤125)
-        WebSocketFrame frame = WebSocketFrame.Encode("hello");
+        WebSocketFrame frame = WebSocketFrame.Encode(Encoding.UTF8.GetBytes("hello"), WebSocketOpcodeType.Text);
 
         Assert.Multiple(() =>
         {
@@ -31,7 +31,7 @@ public class WebSocketFrameTests
     {
         // 126 bytes triggers the two-byte length encoding path (126–65535)
         string data = new('a', 126);
-        WebSocketFrame frame = WebSocketFrame.Encode(data);
+        WebSocketFrame frame = WebSocketFrame.Encode(Encoding.UTF8.GetBytes(data), WebSocketOpcodeType.Text);
 
         ushort encodedLength = BinaryPrimitives.ReadUInt16BigEndian(new ReadOnlySpan<byte>(frame.Data, 2, sizeof(ushort)));
         Assert.Multiple(() =>
@@ -50,7 +50,7 @@ public class WebSocketFrameTests
         // 40,000 bytes is in the two-byte length range (126–65535) and above the
         // signed-short boundary (32767), exercising the full unsigned 16-bit length path.
         string data = new('a', 40000);
-        WebSocketFrame frame = WebSocketFrame.Encode(data);
+        WebSocketFrame frame = WebSocketFrame.Encode(Encoding.UTF8.GetBytes(data), WebSocketOpcodeType.Text);
 
         ushort encodedLength = BinaryPrimitives.ReadUInt16BigEndian(new ReadOnlySpan<byte>(frame.Data, 2, sizeof(ushort)));
         Assert.Multiple(() =>
@@ -68,7 +68,7 @@ public class WebSocketFrameTests
     {
         // 65536 bytes triggers the eight-byte length encoding path (>65535)
         string data = new('a', 65536);
-        WebSocketFrame frame = WebSocketFrame.Encode(data);
+        WebSocketFrame frame = WebSocketFrame.Encode(Encoding.UTF8.GetBytes(data), WebSocketOpcodeType.Text);
 
         long encodedLength = BinaryPrimitives.ReadInt64BigEndian(new ReadOnlySpan<byte>(frame.Data, 2, sizeof(long)));
         Assert.Multiple(() =>
@@ -84,13 +84,100 @@ public class WebSocketFrameTests
     [Test]
     public void TestCanEncodeCloseFrame()
     {
-        WebSocketFrame frame = WebSocketFrame.Encode(string.Empty, WebSocketOpcodeType.Close);
+        WebSocketFrame frame = WebSocketFrame.Encode(new byte[] { }, WebSocketOpcodeType.Close);
 
         Assert.Multiple(() =>
         {
             Assert.That(frame.Opcode, Is.EqualTo(WebSocketOpcodeType.Close));
             Assert.That(frame.Data, Is.EqualTo(new byte[] { 0x88, 0x00 }));
         });
+    }
+
+    [Test]
+    public void TestCanEncodeCloseFrameFromByteArray()
+    {
+        byte[] payload = [0x01, 0x02, 0x03];
+        WebSocketFrame frame = WebSocketFrame.Encode(payload, WebSocketOpcodeType.Close);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(frame.Opcode, Is.EqualTo(WebSocketOpcodeType.Close));
+            Assert.That(frame.Data, Is.EqualTo(new byte[] { 0x88, 0x00 }));
+        });
+    }
+
+    [Test]
+    public void TestCanEncodeShortBinaryFrame()
+    {
+        byte[] payload = [0x01, 0x02, 0x03, 0x04, 0x05];
+        WebSocketFrame frame = WebSocketFrame.Encode(payload);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(frame.Opcode, Is.EqualTo(WebSocketOpcodeType.Binary));
+            Assert.That(frame.Data[0], Is.EqualTo(0x82)); // FIN + Binary opcode
+            Assert.That(frame.Data[1], Is.EqualTo(0x05)); // payload length = 5
+            Assert.That(frame.Data[2..7], Is.EqualTo(payload));
+        });
+    }
+
+    [Test]
+    public void TestCanEncodeMediumBinaryFrame()
+    {
+        byte[] payload = new byte[126];
+        for (int i = 0; i < payload.Length; i++)
+        {
+            payload[i] = (byte)(i % 256);
+        }
+
+        WebSocketFrame frame = WebSocketFrame.Encode(payload);
+
+        ushort encodedLength = BinaryPrimitives.ReadUInt16BigEndian(new ReadOnlySpan<byte>(frame.Data, 2, sizeof(ushort)));
+        byte[] decodedPayload = frame.Data[4..];
+        Assert.Multiple(() =>
+        {
+            Assert.That(frame.Opcode, Is.EqualTo(WebSocketOpcodeType.Binary));
+            Assert.That(frame.Data[0], Is.EqualTo(0x82)); // FIN + Binary opcode
+            Assert.That(frame.Data[1], Is.EqualTo(0x7E)); // length indicator = 126
+            Assert.That(encodedLength, Is.EqualTo(126));
+            Assert.That(decodedPayload, Is.EqualTo(payload));
+        });
+    }
+
+    [Test]
+    public void TestCanEncodeLongBinaryFrame()
+    {
+        byte[] payload = new byte[65536];
+        for (int i = 0; i < payload.Length; i++)
+        {
+            payload[i] = (byte)(i % 256);
+        }
+
+        WebSocketFrame frame = WebSocketFrame.Encode(payload);
+
+        long encodedLength = BinaryPrimitives.ReadInt64BigEndian(new ReadOnlySpan<byte>(frame.Data, 2, sizeof(long)));
+        byte[] decodedPayload = frame.Data[10..];
+        Assert.Multiple(() =>
+        {
+            Assert.That(frame.Opcode, Is.EqualTo(WebSocketOpcodeType.Binary));
+            Assert.That(frame.Data[0], Is.EqualTo(0x82)); // FIN + Binary opcode
+            Assert.That(frame.Data[1], Is.EqualTo(0x7F)); // length indicator = 127
+            Assert.That(encodedLength, Is.EqualTo(65536));
+            Assert.That(decodedPayload, Is.EqualTo(payload));
+        });
+    }
+
+    [Test]
+    public void TestEncodeBinaryWithNullDataThrows()
+    {
+        Assert.That(() => WebSocketFrame.Encode((byte[])null!), Throws.ArgumentNullException.With.Property("ParamName").EqualTo("data"));
+    }
+
+    [Test]
+    public void TestEncodeBinaryWithInvalidOpcodeThrows()
+    {
+        byte[] payload = [0x01, 0x02, 0x03];
+        Assert.That(() => WebSocketFrame.Encode(payload, WebSocketOpcodeType.Ping), Throws.ArgumentException.With.Property("ParamName").EqualTo("opcode"));
     }
 
     [Test]

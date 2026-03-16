@@ -9,6 +9,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading.Tasks;
 
 /// <summary>
@@ -314,8 +315,20 @@ public class Server : IAsyncDisposable
     public async Task SendWebSocketDataAsync(string connectionId, string data)
     {
         this.ThrowIfDisposed();
-        WebSocketFrame frame = WebSocketFrame.Encode(data, WebSocketOpcodeType.Text);
-        await this.SendDataAsync(connectionId, frame.Data).ConfigureAwait(false);
+        await this.SendWebSocketDataInternalAsync(connectionId, Encoding.UTF8.GetBytes(data), WebSocketOpcodeType.Text).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Asynchronously sends binary data formatted as a WebSocket frame to the client connected via this client connection.
+    /// It is expected that the client connection is already established as a WebSocket connection.
+    /// </summary>
+    /// <param name="connectionId">The ID of the client connection to send data to.</param>
+    /// <param name="data">The binary data to be sent.</param>
+    /// <returns>The task object representing the asynchronous operation.</returns>
+    public async Task SendWebSocketDataAsync(string connectionId, byte[] data)
+    {
+        this.ThrowIfDisposed();
+        await this.SendWebSocketDataInternalAsync(connectionId, data, WebSocketOpcodeType.Binary).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -391,6 +404,12 @@ public class Server : IAsyncDisposable
     {
         Socket socket = await this.listener.AcceptSocketAsync().ConfigureAwait(false);
         return socket;
+    }
+
+    private async Task SendWebSocketDataInternalAsync(string connectionId, byte[] data, WebSocketOpcodeType opcode)
+    {
+        WebSocketFrame frame = WebSocketFrame.Encode(data, opcode);
+        await this.SendDataAsync(connectionId, frame.Data).ConfigureAwait(false);
     }
 
     private async Task AcceptConnectionsAsync(CancellationToken cancellationToken)
