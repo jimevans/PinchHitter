@@ -55,12 +55,14 @@ internal class ClientConnection
     public ServerObservableEvent<ClientConnectionEventArgs> OnStopped => this.onStoppedEvent;
 
     /// <summary>
-    /// Gets the event raised when data is received from this client connection.
+    /// Gets the event raised when data is received from this client connection. For WebSocket connections,
+    /// this event is only raised for text frames.
     /// </summary>
     public ServerObservableEvent<ClientConnectionDataReceivedEventArgs> OnDataReceived => this.onDataReceivedEvent;
 
     /// <summary>
-    /// Gets the event raised when data is received from this client connection.
+    /// Gets the event raised when data is received from this client connection. For WebSocket connections,
+    /// this event can be raised with invalid strings for binary frames.
     /// </summary>
     public ServerObservableEvent<ClientConnectionDataSentEventArgs> OnDataSent => this.onDataSentEvent;
 
