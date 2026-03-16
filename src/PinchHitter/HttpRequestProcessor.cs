@@ -16,7 +16,7 @@ public class HttpRequestProcessor
 {
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<HttpRequestMethod, HttpRequestHandler>> handlers = new();
     private readonly NotFoundRequestHandler notFoundHandler = new(WebContent.AsHtmlDocument("<h1>404 Not Found</h1><div>The requested resource was not found</div>"));
-    private readonly BadRequestHandler invalidRequestHandler = new(WebContent.AsHtmlDocument("<h1>400 Invalid Request</h1><div>The authorization request was incorrect</div>"));
+    private readonly BadRequestHandler invalidRequestHandler = new(WebContent.AsHtmlDocument("<h1>400 Invalid Request</h1><div>The request was invalid or malformed</div>"));
 
     /// <summary>
     /// Process an HTTP request, returning a response.

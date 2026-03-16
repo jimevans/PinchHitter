@@ -123,7 +123,12 @@ public class WebSocketFrame
         byte opcodeByte = Convert.ToByte(Convert.ToByte(opcode) | ParityBit);
         if (opcode == WebSocketOpcodeType.Close)
         {
-            // NOTE: Hard code the close frame data.
+            // NOTE: Hard code the close frame data. The WebSocket protocol
+            // specifes that close frames may contain an two-byte status code
+            // and a UTF-8 encoded reason, but in practice, this
+            // implementation, follows many other exsiting implementations,
+            // and elides this additional information. Given the purpose
+            // of this library, this is a reasonable choice.
             return new WebSocketFrame(opcode, new byte[] { opcodeByte, 0x00 });
         }
 
