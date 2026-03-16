@@ -709,6 +709,39 @@ public class ServerTests
     }
 
     [Test]
+    public async Task TestServerCanSendWebSocketNullDataToClient()
+    {
+        await using Server server = new();
+        await server.StartAsync();
+
+        ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(1024, 1024);
+        ManualResetEventSlim connectionEvent = new(false);
+        string connectionId = string.Empty;
+        server.OnClientConnected.AddObserver((e) =>
+        {
+            connectionId = e.ConnectionId;
+            connectionEvent.Set();
+        });
+
+        using ClientWebSocket socket = new();
+        await socket.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
+        connectionEvent.Wait(TimeSpan.FromSeconds(1));
+        Task<WebSocketReceiveResult> receiveTask = Task.Run(() => socket.ReceiveAsync(buffer, CancellationToken.None));
+
+        await server.SendWebSocketDataAsync(connectionId, (string)null!);
+        await receiveTask;
+        WebSocketReceiveResult result = receiveTask.Result;
+        string receivedData = Encoding.UTF8.GetString(buffer.Array!, 0, result.Count);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.MessageType, Is.EqualTo(WebSocketMessageType.Text));
+            Assert.That(receivedData, Is.Not.Null);
+            Assert.That(receivedData, Is.EqualTo(""));
+        });
+    }
+
+    [Test]
     public async Task TestServerCanSendBinaryWebSocketDataToClient()
     {
         byte[] data = [0x00, 0x01, 0x02, 0xFF, 0xFE];
@@ -737,6 +770,38 @@ public class ServerTests
         {
             Assert.That(result.MessageType, Is.EqualTo(WebSocketMessageType.Binary));
             Assert.That(receivedData, Is.EqualTo(data));
+        });
+    }
+
+    [Test]
+    public async Task TestServerCanSendNullBinaryWebSocketDataToClient()
+    {
+        byte[] data = [0x00, 0x01, 0x02, 0xFF, 0xFE];
+        ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(1024, 1024);
+        ManualResetEventSlim connectionEvent = new(false);
+        string connectionId = string.Empty;
+        await using Server server = new();
+        await server.StartAsync();
+        server.OnClientConnected.AddObserver((e) =>
+        {
+            connectionId = e.ConnectionId;
+            connectionEvent.Set();
+        });
+
+        using ClientWebSocket socket = new();
+        await socket.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
+        connectionEvent.Wait(TimeSpan.FromSeconds(1));
+        Task<WebSocketReceiveResult> receiveTask = Task.Run(() => socket.ReceiveAsync(buffer, CancellationToken.None));
+
+        await server.SendWebSocketDataAsync(connectionId, (byte[])null!);
+        await receiveTask;
+        WebSocketReceiveResult result = receiveTask.Result;
+        byte[] receivedData = buffer.Array!.AsSpan(0, result.Count).ToArray();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.MessageType, Is.EqualTo(WebSocketMessageType.Binary));
+            Assert.That(receivedData, Is.EqualTo(Array.Empty<byte>()));
         });
     }
 
@@ -1061,6 +1126,33 @@ public class ServerTests
     }
 
     [Test]
+    public async Task TestSendingWebSocketDataForNullConnectionIdThrows()
+    {
+        await using Server server = new();
+        await server.StartAsync();
+
+        Assert.That(async () => await server.SendWebSocketDataAsync(null!, "Sent to client"), Throws.InstanceOf<ArgumentNullException>());
+    }
+
+    [Test]
+    public async Task TestSendingWebSocketDataForEmptyConnectionIdThrows()
+    {
+        await using Server server = new();
+        await server.StartAsync();
+
+        Assert.That(async () => await server.SendWebSocketDataAsync(string.Empty, "Sent to client"), Throws.InstanceOf<ArgumentException>());
+    }
+
+    [Test]
+    public async Task TestSendingWebSocketDataForWhitespaceConnectionIdThrows()
+    {
+        await using Server server = new();
+        await server.StartAsync();
+
+        Assert.That(async () => await server.SendWebSocketDataAsync("   ", "Sent to client"), Throws.InstanceOf<ArgumentException>());
+    }
+
+    [Test]
     public async Task TestServerLogsIncomingAndOutgoingDataForHttpTraffic()
     {
         await using Server server = new();
@@ -1182,6 +1274,33 @@ public class ServerTests
         await server.StartAsync();
 
         Assert.That(() => server.IgnoreCloseConnectionRequest("invalidConnectionId", true), Throws.InstanceOf<PinchHitterException>());
+    }
+
+    [Test]
+    public async Task TestSettingIgnoreCloseRequestForNullConnectionIdThrows()
+    {
+        await using Server server = new();
+        await server.StartAsync();
+
+        Assert.That(() => server.IgnoreCloseConnectionRequest(null!, true), Throws.InstanceOf<ArgumentNullException>());
+    }
+
+    [Test]
+    public async Task TestSettingIgnoreCloseRequestForEmptyConnectionIdThrows()
+    {
+        await using Server server = new();
+        await server.StartAsync();
+
+        Assert.That(() => server.IgnoreCloseConnectionRequest(string.Empty, true), Throws.InstanceOf<ArgumentException>());
+    }
+
+    [Test]
+    public async Task TestSettingIgnoreCloseRequestForWhitespaceConnectionIdThrows()
+    {
+        await using Server server = new();
+        await server.StartAsync();
+
+        Assert.That(() => server.IgnoreCloseConnectionRequest("   ", true), Throws.InstanceOf<ArgumentException>());
     }
 
     [Test]

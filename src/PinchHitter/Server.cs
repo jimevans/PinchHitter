@@ -134,6 +134,7 @@ public class Server : IAsyncDisposable
     /// Asynchronously starts the server listening for incoming connections.
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
+    /// <exception cref="ObjectDisposedException">Thrown when called on a disposed <see cref="Server"/>.</exception>
     public async Task StartAsync()
     {
         this.ThrowIfDisposed();
@@ -180,6 +181,7 @@ public class Server : IAsyncDisposable
     /// graceful teardown of all active connections before returning.
     /// </summary>
     /// <returns>The task object representing the asynchronous operation.</returns>
+    /// <exception cref="ObjectDisposedException">Thrown when called on a disposed <see cref="Server"/>.</exception>
     public async Task StopAsync()
     {
         this.ThrowIfDisposed();
@@ -278,6 +280,7 @@ public class Server : IAsyncDisposable
     /// handled by the default HttpRequestProcessor. For more flexible URL matching,
     /// users should create their own implementation of HttpRequestProcessor.
     /// </remarks>
+    /// <exception cref="ObjectDisposedException">Thrown when called on a disposed <see cref="Server"/>.</exception>
     public void RegisterHandler(string url, HttpRequestHandler handler)
     {
         this.ThrowIfDisposed();
@@ -299,6 +302,7 @@ public class Server : IAsyncDisposable
     /// handled by the default HttpRequestProcessor. For more flexible URL matching,
     /// users should create their own implementation of HttpRequestProcessor.
     /// </remarks>
+    /// <exception cref="ObjectDisposedException">Thrown when called on a disposed <see cref="Server"/>.</exception>
     public void RegisterHandler(string url, HttpRequestMethod method, HttpRequestHandler handler)
     {
         this.ThrowIfDisposed();
@@ -312,9 +316,12 @@ public class Server : IAsyncDisposable
     /// <param name="connectionId">The ID of the client connection to send data to.</param>
     /// <param name="data">The data to be sent.</param>
     /// <returns>The task object representing the asynchronous operation.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="connectionId"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="connectionId"/> is empty or contains only whitespace.</exception>
+    /// <exception cref="ObjectDisposedException">Thrown when called on a disposed <see cref="Server"/>.</exception>
     public async Task SendWebSocketDataAsync(string connectionId, string data)
     {
-        this.ThrowIfDisposed();
+        data ??= string.Empty;
         await this.SendWebSocketDataInternalAsync(connectionId, Encoding.UTF8.GetBytes(data), WebSocketOpcodeType.Text).ConfigureAwait(false);
     }
 
@@ -325,9 +332,12 @@ public class Server : IAsyncDisposable
     /// <param name="connectionId">The ID of the client connection to send data to.</param>
     /// <param name="data">The binary data to be sent.</param>
     /// <returns>The task object representing the asynchronous operation.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="connectionId"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="connectionId"/> is empty or contains only whitespace.</exception>
+    /// <exception cref="ObjectDisposedException">Thrown when called on a disposed <see cref="Server"/>.</exception>
     public async Task SendWebSocketDataAsync(string connectionId, byte[] data)
     {
-        this.ThrowIfDisposed();
+        data ??= Array.Empty<byte>();
         await this.SendWebSocketDataInternalAsync(connectionId, data, WebSocketOpcodeType.Binary).ConfigureAwait(false);
     }
 
@@ -339,9 +349,23 @@ public class Server : IAsyncDisposable
     /// <param name="connectionId">The ID of the connection for which to set the close request behavior.</param>
     /// <param name="ignoreCloseConnectionRequest"><see langword="true"/> to have the client connection ignore close requests; otherwise, <see langword="false"/>.</param>
     /// <exception cref="PinchHitterException">Thrown when an invalid connection ID is specified.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="connectionId"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="connectionId"/> is empty or contains only whitespace.</exception>
+    /// <exception cref="ObjectDisposedException">Thrown when called on a disposed <see cref="Server"/>.</exception>
     public void IgnoreCloseConnectionRequest(string connectionId, bool ignoreCloseConnectionRequest)
     {
         this.ThrowIfDisposed();
+        if (connectionId is null)
+        {
+            throw new ArgumentNullException(nameof(connectionId), "Connection ID cannot be null.");
+        }
+
+        connectionId = connectionId.Trim();
+        if (string.IsNullOrEmpty(connectionId))
+        {
+            throw new ArgumentException("Connection ID cannot be empty.", nameof(connectionId));
+        }
+
         if (!this.activeConnections.TryGetValue(connectionId, out ClientConnection? connection))
         {
             throw new PinchHitterException($"Unknown connection ID {connectionId}");
@@ -408,6 +432,18 @@ public class Server : IAsyncDisposable
 
     private async Task SendWebSocketDataInternalAsync(string connectionId, byte[] data, WebSocketOpcodeType opcode)
     {
+        this.ThrowIfDisposed();
+        if (connectionId is null)
+        {
+            throw new ArgumentNullException(nameof(connectionId), "Connection ID cannot be null.");
+        }
+
+        connectionId = connectionId.Trim();
+        if (string.IsNullOrEmpty(connectionId))
+        {
+            throw new ArgumentException("Connection ID cannot be empty.", nameof(connectionId));
+        }
+
         WebSocketFrame frame = WebSocketFrame.Encode(data, opcode);
         await this.SendDataAsync(connectionId, frame.Data).ConfigureAwait(false);
     }
