@@ -121,8 +121,14 @@ public class HttpResponse
     /// Sets the body content of this HTTP response as an array of bytes.
     /// </summary>
     /// <param name="content">The byte array containing the body content.</param>
+    /// <exception cref="ArgumentNullException">Thrown if the <paramref name="content"/> parameter is null.</exception>
     public void SetBodyContent(byte[] content)
     {
+        if (content is null)
+        {
+            throw new ArgumentNullException(nameof(content), "Body content cannot be null. Use an empty byte array instead.");
+        }
+
         this.bodyContent = content;
     }
 

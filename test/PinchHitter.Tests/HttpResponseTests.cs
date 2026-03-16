@@ -40,4 +40,14 @@ public class HttpResponseTests
             Assert.That(responseLines[0], Is.EqualTo("HTTP/1.1 306"));
         });
     }
+
+    [Test]
+    public void TestSetResponseBodyContentWithNullValueThrows()
+    {
+        HttpResponse response = new("requestId")
+        {
+            StatusCode = HttpStatusCode.OK
+        };
+        Assert.That(() => response.SetBodyContent(null!), Throws.InstanceOf<ArgumentNullException>());
+    }
 }
