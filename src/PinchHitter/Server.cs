@@ -404,11 +404,17 @@ public class Server : IAsyncDisposable
     /// <returns>A task that represents the asynchronous dispose operation.</returns>
     protected virtual async ValueTask DisposeAsyncCore()
     {
-        // StopAsync calls Stop() on the listener.
-        await this.StopAsync().ConfigureAwait(false);
-        this.listener.Server.Dispose();
-        this.startStopSemaphore.Dispose();
-        this.isDisposed = true;
+        try
+        {
+            // StopAsync calls Stop() on the listener.
+            await this.StopAsync().ConfigureAwait(false);
+            this.listener.Server.Dispose();
+            this.startStopSemaphore.Dispose();
+        }
+        finally
+        {
+            this.isDisposed = true;
+        }
     }
 
     /// <summary>
