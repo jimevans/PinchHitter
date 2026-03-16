@@ -39,6 +39,7 @@ internal class ClientConnection
     internal ClientConnection(Socket clientSocket, HttpRequestProcessor httpProcessor, int bufferSize = 1024)
     {
         this.clientSocket = clientSocket;
+        this.cancellationTokenSource.Token.Register(this.clientSocket.Close);
         this.bufferSize = bufferSize;
         this.httpProcessor = httpProcessor;
     }
@@ -84,12 +85,6 @@ internal class ClientConnection
         set => Interlocked.Exchange(ref this.ignoreCloseRequestFlag, value ? 1 : 0);
     }
 
-    /// <summary>
-    /// Gets a task that represents the asynchronous operation of receiving data on this client connection.
-    /// If the receiving operation has not been started, this will return a completed task.
-    /// </summary>
-    internal Task DataReceivedTask => this.receiveDataTask;
-
     private WebSocketState State
     {
         get
@@ -112,18 +107,22 @@ internal class ClientConnection
     /// <summary>
     /// Starts receiving data on this client connection.
     /// </summary>
-    public void StartReceiving()
+    /// <returns>The task object representing the asynchronous operation.</returns>
+    public Task StartReceivingAsync()
     {
-        this.receiveDataTask = Task.Run(() => this.ReceiveDataAsync());
+        this.receiveDataTask = this.ReceiveDataAsync();
+        return Task.CompletedTask;
     }
 
     /// <summary>
     /// Stops receiving data on this client connection. Synchronizing with the
     /// completion of the receiving task is the responsibility of the consumer.
     /// </summary>
-    public void StopReceiving()
+    /// <returns>The task object representing the asynchronous operation.</returns>
+    public async Task StopReceivingAsync()
     {
         this.cancellationTokenSource.Cancel();
+        await this.receiveDataTask.ConfigureAwait(false);
     }
 
     /// <summary>
@@ -135,7 +134,7 @@ internal class ClientConnection
         WebSocketState currentState = this.State;
         if (currentState == WebSocketState.None)
         {
-            this.cancellationTokenSource.Cancel();
+            await this.StopReceivingAsync().ConfigureAwait(false);
         }
 
         if (currentState == WebSocketState.Open)
@@ -157,10 +156,7 @@ internal class ClientConnection
     /// </remarks>
     public async Task SendDataAsync(byte[] data)
     {
-        // In .NETStandard 2.1, we could simply call Socket.SendAsync,
-        // which is awaitable already. For .NETStandard 2.0, we will use
-        // a synchronous call, but schedule it as a task to make it awaitable.
-        int bytesSent = await Task.Run(() => this.SendDataInternal(data)).ConfigureAwait(false);
+        int bytesSent = await this.clientSocket.SendAsync(new ArraySegment<byte>(data), SocketFlags.None).ConfigureAwait(false);
         await this.onLogMessageEvent.NotifyObserversAsync(new ClientConnectionLogMessageEventArgs($"SEND {bytesSent} bytes")).ConfigureAwait(false);
         string text = Encoding.UTF8.GetString(data);
         await this.onDataSentEvent.NotifyObserversAsync(new ClientConnectionDataSentEventArgs(this.connectionId, bytesSent, text)).ConfigureAwait(false);
@@ -169,33 +165,55 @@ internal class ClientConnection
     private async Task ReceiveDataAsync()
     {
         await this.onStartingEvent.NotifyObserversAsync(new ClientConnectionEventArgs(this.connectionId)).ConfigureAwait(false);
-        try
+        while (!this.cancellationTokenSource.Token.IsCancellationRequested)
         {
-            while (this.State != WebSocketState.Closed)
+            try
             {
-                // In .NETStandard 2.1, we could use a NetworkStream to wrap the
-                // socket and call ReadAsync(), which is awaitable to read the
-                // incoming data. For .NETStandard 2.0, we must use the original
-                // ReceiveAsync method on the socket directly, which is not
-                // awaitable, but we will wrap that usage in a Task to make it so.
-                Task<byte[]> receiveDataTask = Task.Run(this.ReceiveDataInternal, this.cancellationTokenSource.Token);
-                byte[] receivedData = await receiveDataTask.ConfigureAwait(false);
-                if (receivedData.Length == 0)
+                List<byte> receivedBytes = new();
+                byte[] buffer = new byte[this.bufferSize];
+                int frameBytesReceived = await this.clientSocket.ReceiveAsync(new ArraySegment<byte>(buffer), SocketFlags.None).ConfigureAwait(false);
+                receivedBytes.AddRange(new ArraySegment<byte>(buffer, 0, frameBytesReceived));
+                while (this.clientSocket.Available > 0)
+                {
+                    frameBytesReceived = await this.clientSocket.ReceiveAsync(new ArraySegment<byte>(buffer), SocketFlags.None).ConfigureAwait(false);
+                    receivedBytes.AddRange(new ArraySegment<byte>(buffer, 0, frameBytesReceived));
+                }
+
+                if (receivedBytes.Count == 0)
                 {
                     // Zero bytes received means the peer closed the TCP connection.
                     // Exit without attempting to process or respond to the empty buffer.
                     break;
                 }
 
-                await this.ProcessIncomingDataAsync(receivedData, receivedData.Length).ConfigureAwait(false);
+                await this.ProcessIncomingDataAsync(receivedBytes.ToArray(), receivedBytes.Count).ConfigureAwait(false);
+                if (this.State == WebSocketState.Closed)
+                {
+                    // The State property only transitions to Closed after the
+                    // WebSocket close handshake is complet, so it is now safe
+                    // to close the underlying socket connection.
+                    this.clientSocket.Close();
+                    break;
+                }
+            }
+            catch (SocketException)
+            {
+                // Socket exceptions can occur when the client disconnects unexpectedly.
+                // Exit the receiving loop to clean up resources and raise the appropriate events.
+                break;
+            }
+            catch (OperationCanceledException)
+            {
+                // Operation canceled exceptions can occur when the client disconnects with
+                // in-progress send or receive operations.
+                // Exit the receiving loop to clean up resources and raise the appropriate events.
+                break;
             }
         }
-       finally
-        {
-            this.clientSocket.Dispose();
-            await this.onStoppedEvent.NotifyObserversAsync(new ClientConnectionEventArgs(this.connectionId)).ConfigureAwait(false);
-            this.cancellationTokenSource.Dispose();
-        }
+
+        this.clientSocket.Dispose();
+        this.cancellationTokenSource.Dispose();
+        await this.onStoppedEvent.NotifyObserversAsync(new ClientConnectionEventArgs(this.connectionId)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -234,8 +252,7 @@ internal class ClientConnection
             // Note: We do not handle continuation frames (WebSocketOpcodeType.Fragment)
             // in this implementation. Consider it a feature for a future iteration.
             // Likewise, we do not handle non-text frames (WebSocketOpcodeType.Binary)
-            // in this implementation.
-            // Finally, we do not handle ping and pong frames.
+            // in this implementation. We also do not handle ping and pong frames.
             WebSocketFrame frame = WebSocketFrame.Decode(buffer);
             if (frame.Opcode == WebSocketOpcodeType.Text)
             {
@@ -260,59 +277,5 @@ internal class ClientConnection
     {
         WebSocketFrame closeFrame = WebSocketFrame.Encode(message, WebSocketOpcodeType.Close);
         await this.SendDataAsync(closeFrame.Data).ConfigureAwait(false);
-    }
-
-    private int SendDataInternal(byte[] data)
-    {
-        using SocketAsyncEventArgs socketAsyncEventArgs = new()
-        {
-            SocketFlags = SocketFlags.None,
-        };
-        socketAsyncEventArgs.SetBuffer(data, 0, data.Length);
-
-        using ManualResetEventSlim completedEvent = new(false);
-        socketAsyncEventArgs.Completed += (sender, e) =>
-        {
-            completedEvent.Set();
-        };
-
-        bool operationIsPending = this.clientSocket.SendAsync(socketAsyncEventArgs);
-        if (operationIsPending)
-        {
-            completedEvent.Wait(this.cancellationTokenSource.Token);
-        }
-
-        return socketAsyncEventArgs.BytesTransferred;
-    }
-
-    private byte[] ReceiveDataInternal()
-    {
-        byte[] buffer = new byte[this.bufferSize];
-        using SocketAsyncEventArgs socketAsyncEventArgs = new()
-        {
-            SocketFlags = SocketFlags.None,
-        };
-        socketAsyncEventArgs.SetBuffer(buffer, 0, buffer.Length);
-
-        using ManualResetEventSlim completedEvent = new(false);
-        socketAsyncEventArgs.Completed += (sender, e) =>
-        {
-            completedEvent.Set();
-        };
-
-        List<byte> receivedBytes = new();
-        do
-        {
-            completedEvent.Reset();
-            bool operationIsPending = this.clientSocket.ReceiveAsync(socketAsyncEventArgs);
-            if (operationIsPending)
-            {
-                completedEvent.Wait(this.cancellationTokenSource.Token);
-            }
-
-            receivedBytes.AddRange(new ArraySegment<byte>(socketAsyncEventArgs.Buffer!, 0, socketAsyncEventArgs.BytesTransferred));
-        }
-        while (this.clientSocket.Available > 0);
-        return receivedBytes.ToArray();
     }
 }

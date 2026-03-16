@@ -215,8 +215,8 @@ public class Server : IAsyncDisposable
                 List<ClientConnection> connections = [.. this.activeConnections.Values];
                 foreach (ClientConnection connection in connections)
                 {
-                    connection.StopReceiving();
-                    tasks.Add(connection.DataReceivedTask);
+                    Task connectionTask = connection.StopReceivingAsync();
+                    tasks.Add(connectionTask);
                 }
 
                 this.activeConnections.Clear();
@@ -428,7 +428,7 @@ public class Server : IAsyncDisposable
                     {
                         await this.OnClientConnectionStopped(e.ConnectionId).ConfigureAwait(false);
                     });
-                    clientConnection.StartReceiving();
+                    await clientConnection.StartReceivingAsync().ConfigureAwait(false);
                     socket = null;
                     this.LogMessage("Client connected");
                 }

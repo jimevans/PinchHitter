@@ -108,6 +108,49 @@ public class ServerTests
     }
 
     [Test]
+    public async Task TestConnectionReceiveDataLoopHandlesOperationCanceledException()
+    {
+        // Add an observer that throws OperationCanceledException when data is received.
+        // This deterministically exercises the catch (OperationCanceledException) path
+        // in ClientConnection.ReceiveDataAsync for code coverage.
+        await using Server server = new();
+        await server.StartAsync();
+        server.RegisterHandler("/", new WebResourceRequestHandler("hello world"));
+
+        ManualResetEventSlim connectionEvent = new(false);
+        string connectionId = string.Empty;
+        server.OnClientConnected.AddObserver((e) =>
+        {
+            connectionId = e.ConnectionId;
+            connectionEvent.Set();
+        });
+
+        ManualResetEventSlim disconnectionEvent = new(false);
+        server.OnClientDisconnected.AddObserver((e) =>
+        {
+            if (e.ConnectionId == connectionId)
+            {
+                disconnectionEvent.Set();
+            }
+        });
+
+        server.OnDataReceived.AddObserver(_ => throw new OperationCanceledException());
+
+        using HttpClient client = new();
+        try
+        {
+            _ = await client.GetAsync($"http://localhost:{server.Port}/");
+        }
+        catch (HttpRequestException)
+        {
+            // Expected: connection closed abruptly when observer threw.
+        }
+
+        bool disconnectEventRaised = disconnectionEvent.Wait(TimeSpan.FromSeconds(2));
+        Assert.That(disconnectEventRaised, Is.True, "OnClientDisconnected should be raised after OperationCanceledException is caught and cleanup runs");
+    }
+
+    [Test]
     public async Task TestShutdownWithoutReceivingRequest()
     {
         await using Server server = new();
