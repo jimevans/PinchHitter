@@ -35,6 +35,11 @@ public class ServerDataSentEventArgs : EventArgs
     /// <summary>
     /// Gets the data sent to the connection.
     /// </summary>
+    /// <remarks>
+    /// The data sent to the connection is represented as a string, which may not be the
+    /// most appropriate data type for all use cases. Binary data sent to the connection
+    /// may include invalid or unreadable characters.
+    /// </remarks>
     public string Data => this.data;
 
     /// <summary>

@@ -61,7 +61,7 @@ internal class ClientConnection
     public ServerObservableEvent<ClientConnectionDataReceivedEventArgs> OnDataReceived => this.onDataReceivedEvent;
 
     /// <summary>
-    /// Gets the event raised when data is received from this client connection. For WebSocket connections,
+    /// Gets the event raised when data is sent over this client connection. For WebSocket connections,
     /// this event can be raised with invalid strings for binary frames.
     /// </summary>
     public ServerObservableEvent<ClientConnectionDataSentEventArgs> OnDataSent => this.onDataSentEvent;
@@ -192,7 +192,7 @@ internal class ClientConnection
                 if (this.State == WebSocketState.Closed)
                 {
                     // The State property only transitions to Closed after the
-                    // WebSocket close handshake is complet, so it is now safe
+                    // WebSocket close handshake is complete, so it is now safe
                     // to close the underlying socket connection.
                     this.clientSocket.Close();
                     break;
@@ -253,8 +253,8 @@ internal class ClientConnection
         {
             // Note: We do not handle continuation frames (WebSocketOpcodeType.Fragment)
             // in this implementation. Consider it a feature for a future iteration.
-            // Likewise, we do not handle non-text frames (WebSocketOpcodeType.Binary)
-            // in this implementation. We also do not handle ping and pong frames.
+            // We also do not handle ping and pong frames. We purposefully do not
+            // notification of the receipt of binary frames.
             WebSocketFrame frame = WebSocketFrame.Decode(buffer);
             if (frame.Opcode == WebSocketOpcodeType.Text)
             {
