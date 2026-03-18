@@ -5,7 +5,6 @@
 
 namespace PinchHitter;
 
-using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading.Tasks;
@@ -17,7 +16,7 @@ internal class ClientConnection
 {
     private readonly object stateLock = new();
     private readonly CancellationTokenSource cancellationTokenSource = new();
-    private readonly Socket clientSocket;
+    private readonly Stream clientStream;
     private readonly string connectionId = Guid.NewGuid().ToString();
     private readonly int bufferSize;
     private readonly HttpRequestProcessor httpProcessor;
@@ -33,13 +32,13 @@ internal class ClientConnection
     /// <summary>
     /// Initializes a new instance of the <see cref="ClientConnection"/> class.
     /// </summary>
-    /// <param name="clientSocket">The Socket used to communicate with the client.</param>
+    /// <param name="clientStream">The Stream used to communicate with the client.</param>
     /// <param name="httpProcessor">An HttpRequestProcessor used to process HTTP requests.</param>
     /// <param name="bufferSize">The size of the buffer used for socket communication.</param>
-    internal ClientConnection(Socket clientSocket, HttpRequestProcessor httpProcessor, int bufferSize = 1024)
+    internal ClientConnection(Stream clientStream, HttpRequestProcessor httpProcessor, int bufferSize = 1024)
     {
-        this.clientSocket = clientSocket;
-        this.cancellationTokenSource.Token.Register(this.clientSocket.Close);
+        this.clientStream = clientStream;
+        this.cancellationTokenSource.Token.Register(this.clientStream.Close);
         this.bufferSize = bufferSize;
         this.httpProcessor = httpProcessor;
     }
@@ -159,62 +158,66 @@ internal class ClientConnection
     /// </remarks>
     public async Task SendDataAsync(byte[] data)
     {
-        int bytesSent = await this.clientSocket.SendAsync(new ArraySegment<byte>(data), SocketFlags.None).ConfigureAwait(false);
-        await this.onLogMessageEvent.NotifyObserversAsync(new ClientConnectionLogMessageEventArgs($"SEND {bytesSent} bytes")).ConfigureAwait(false);
+        await this.clientStream.WriteAsync(data, 0, data.Length).ConfigureAwait(false);
+        await this.clientStream.FlushAsync().ConfigureAwait(false);
+        await this.onLogMessageEvent.NotifyObserversAsync(new ClientConnectionLogMessageEventArgs($"SEND {data.Length} bytes")).ConfigureAwait(false);
         string text = Encoding.UTF8.GetString(data);
-        await this.onDataSentEvent.NotifyObserversAsync(new ClientConnectionDataSentEventArgs(this.connectionId, bytesSent, text)).ConfigureAwait(false);
+        await this.onDataSentEvent.NotifyObserversAsync(new ClientConnectionDataSentEventArgs(this.connectionId, data.Length, text)).ConfigureAwait(false);
     }
 
     private async Task ReceiveDataAsync()
     {
         await this.onStartingEvent.NotifyObserversAsync(new ClientConnectionEventArgs(this.connectionId)).ConfigureAwait(false);
-        while (!this.cancellationTokenSource.Token.IsCancellationRequested)
+        byte[] buffer = new byte[this.bufferSize];
+        List<byte> pending = [];
+        try
         {
-            try
+            while (true)
             {
-                List<byte> receivedBytes = new();
-                byte[] buffer = new byte[this.bufferSize];
-                int frameBytesReceived = await this.clientSocket.ReceiveAsync(new ArraySegment<byte>(buffer), SocketFlags.None).ConfigureAwait(false);
-                receivedBytes.AddRange(new ArraySegment<byte>(buffer, 0, frameBytesReceived));
-                while (this.clientSocket.Available > 0)
+                // Blocks until at least one byte is received or the connection is closed.
+                // The cancellation token will break out of the wait, throwing an
+                // OperationCanceledException, if the connection is stopped while waiting.
+                int bytesRead = await this.clientStream.ReadAsync(buffer, 0, buffer.Length, this.cancellationTokenSource.Token).ConfigureAwait(false);
+                if (bytesRead == 0)
                 {
-                    frameBytesReceived = await this.clientSocket.ReceiveAsync(new ArraySegment<byte>(buffer), SocketFlags.None).ConfigureAwait(false);
-                    receivedBytes.AddRange(new ArraySegment<byte>(buffer, 0, frameBytesReceived));
-                }
-
-                if (receivedBytes.Count == 0)
-                {
-                    // Zero bytes received means the peer closed the TCP connection.
-                    // Exit without attempting to process or respond to the empty buffer.
+                    // EOF — client closed the connection
                     break;
                 }
 
-                await this.ProcessIncomingDataAsync(receivedBytes.ToArray(), receivedBytes.Count).ConfigureAwait(false);
+                pending.AddRange(new ArraySegment<byte>(buffer, 0, bytesRead));
+
+                // Process as many complete messages as the buffer contains.
+                // A single ReadAsync may deliver more than one message (e.g. pipelined
+                // HTTP requests, or back-to-back WebSocket frames).
+                while (this.TryGetCompleteMessageLength(pending, out int messageLength))
+                {
+                    byte[] message = pending.GetRange(0, messageLength).ToArray();
+                    await this.ProcessIncomingDataAsync(message, messageLength).ConfigureAwait(false);
+                    pending.RemoveRange(0, messageLength);
+
+                    if (this.State == WebSocketState.Closed)
+                    {
+                        break;
+                    }
+                }
+
                 if (this.State == WebSocketState.Closed)
                 {
-                    // The State property only transitions to Closed after the
-                    // WebSocket close handshake is complete, so it is now safe
-                    // to close the underlying socket connection.
-                    this.clientSocket.Close();
                     break;
                 }
             }
-            catch (SocketException)
-            {
-                // Socket exceptions can occur when the client disconnects unexpectedly.
-                // Exit the receiving loop to clean up resources and raise the appropriate events.
-                break;
-            }
-            catch (OperationCanceledException)
-            {
-                // Operation canceled exceptions can occur when the client disconnects with
-                // in-progress send or receive operations.
-                // Exit the receiving loop to clean up resources and raise the appropriate events.
-                break;
-            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Operation canceled exceptions are part of the normal shutdown operations.
+        }
+        catch (IOException)
+        {
+            // IO exceptions can occur when the client disconnects unexpectedly.
+            // They are unrecoverable, so we do not attempt to continue receiving.
         }
 
-        this.clientSocket.Dispose();
+        this.clientStream.Dispose();
         await this.onStoppedEvent.NotifyObserversAsync(new ClientConnectionEventArgs(this.connectionId)).ConfigureAwait(false);
     }
 
@@ -279,5 +282,76 @@ internal class ClientConnection
     {
         WebSocketFrame closeFrame = WebSocketFrame.Encode(Encoding.UTF8.GetBytes(message), WebSocketOpcodeType.Close);
         await this.SendDataAsync(closeFrame.Data).ConfigureAwait(false);
+    }
+
+    private bool TryGetCompleteMessageLength(List<byte> pending, out int messageLength)
+    {
+        if (this.State == WebSocketState.None)
+        {
+            // We are in HTTP 1 mode, so find the end-of-headers marker
+            string text = Encoding.UTF8.GetString(pending.ToArray());
+            int headerEnd = text.IndexOf("\r\n\r\n", StringComparison.Ordinal);
+            if (headerEnd < 0)
+            {
+                // Headers not fully received yet
+                messageLength = 0;
+                return false;
+            }
+
+            // Quick scan for Content-Length without a full parse
+            int contentLength = 0;
+            string[] lines = text.Substring(0, headerEnd).Split(["\r\n"], StringSplitOptions.None);
+            foreach (string line in lines)
+            {
+                if (line.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase))
+                {
+                    _ = int.TryParse(line.Substring("Content-Length:".Length).Trim(), out contentLength);
+                    break;
+                }
+            }
+
+            // +4 for the \r\n\r\n itself
+            int requiredLength = headerEnd + 4 + contentLength;
+            if (pending.Count < requiredLength)
+            {
+                 // Body not fully received yet
+                messageLength = 0;
+                return false;
+            }
+
+            messageLength = requiredLength;
+            return true;
+        }
+        else
+        {
+            // We are in WebSocket mode, so we need to parse the frame header
+            // to determine the message length. We need at least 2 bytes for
+            // the frame header.
+            if (pending.Count < 2)
+            {
+                messageLength = 0;
+                return false;
+            }
+
+            // If we don't have a complete header yet, we can't determine the message length.
+            WebSocketFrameHeader header = WebSocketFrameHeader.Decode(pending.ToArray());
+            if (!header.IsHeaderComplete)
+            {
+                messageLength = 0;
+                return false;
+            }
+
+            // Total message length is length of the header (including encoded payload
+            // length and mask key) plus the payload length.
+            long totalFrameLength = header.PayloadStartOffset + header.PayloadLength;
+            if (pending.Count < totalFrameLength)
+            {
+                messageLength = 0;
+                return false;
+            }
+
+            messageLength = Convert.ToInt32(totalFrameLength);
+            return true;
+        }
     }
 }

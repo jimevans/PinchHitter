@@ -295,6 +295,15 @@ public class WebSocketFrameTests
         Assert.That(() => WebSocketFrame.Decode(buffer), Throws.InstanceOf<ArgumentException>().With.Message.Contain("too short").And.Property("ParamName").EqualTo("buffer"));
     }
 
+    [Test]
+    public void TestDecodeBufferWithIncompleteHeaderThrows()
+    {
+        // Single-byte length path: need at least 6 bytes (2 header + 4 mask). Provide 5.
+        byte[] buffer = new byte[] { 0x81, 0xFE, 0x00 }; // opcode, length=126, invalid/incomplete header
+
+        Assert.That(() => WebSocketFrame.Decode(buffer), Throws.InstanceOf<ArgumentException>().With.Message.Contain("too short").And.Property("ParamName").EqualTo("buffer"));
+    }
+
     /// <summary>
     /// Builds a masked WebSocket frame in client-to-server wire format.
     /// The length encoding is chosen automatically based on payload size.

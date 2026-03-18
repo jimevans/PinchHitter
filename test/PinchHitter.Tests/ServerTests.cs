@@ -1366,6 +1366,141 @@ public class ServerTests
         Assert.That(server.Port, Is.EqualTo(specificPort));
     }
 
+    [Test]
+    public async Task TestServerHandlesUnexpectedClientDisconnect()
+    {
+        await using Server server = new();
+        await server.StartAsync();
+
+        ManualResetEventSlim connectionEvent = new(false);
+        server.OnClientConnected.AddObserver((e) =>
+        {
+            connectionEvent.Set();
+        });
+
+        ManualResetEventSlim disconnectionEvent = new(false);
+        server.OnClientDisconnected.AddObserver((e) =>
+        {
+            disconnectionEvent.Set();
+        });
+
+        using Socket socket = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        await socket.ConnectAsync(IPAddress.Loopback, server.Port);
+        bool connected = connectionEvent.Wait(TimeSpan.FromSeconds(1));
+        Assert.That(connected, Is.True);
+
+        // LingerOption(true, 0) causes Close() to send a TCP RST instead of the normal
+        // FIN/FIN-ACK sequence. This causes the server's ReadAsync to throw IOException
+        // rather than returning 0 bytes (which would be a clean EOF from a graceful close).
+        socket.LingerState = new LingerOption(true, 0);
+        socket.Close();
+
+        bool disconnected = disconnectionEvent.Wait(TimeSpan.FromSeconds(1));
+        Assert.That(disconnected, Is.True);
+    }
+
+    [Test]
+    public async Task TestServerHandlesHttpRequestWithBodyArrivingInMultipleReads()
+    {
+        await using Server server = new();
+        await server.StartAsync();
+        server.RegisterHandler("/", HttpRequestMethod.Post, new WebResourceRequestHandler("ok"));
+
+        ManualResetEventSlim syncEvent = new(false);
+        server.OnDataReceived.AddObserver((e) =>
+        {
+            syncEvent.Set();
+        });
+
+        // TcpClient with NoDelay disables Nagle so each WriteAsync becomes its own
+        // TCP segment, guaranteeing the server sees two separate reads.
+        using TcpClient client = new()
+        {
+            NoDelay = true,
+        };
+        await client.ConnectAsync(IPAddress.Loopback, server.Port);
+        NetworkStream stream = client.GetStream();
+
+        // Send headers only. Content-Length declares a 5-byte body that is not yet sent.
+        // TryGetCompleteMessageLength (lines 317-320) returns false here.
+        byte[] headers = Encoding.UTF8.GetBytes("POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 5\r\n\r\n");
+        await stream.WriteAsync(headers.AsMemory());
+        await stream.FlushAsync();
+        await Task.Delay(50);
+
+        // Send the body. TryGetCompleteMessageLength now returns true and the message is processed.
+        byte[] body = Encoding.UTF8.GetBytes("hello");
+        await stream.WriteAsync(body.AsMemory());
+        await stream.FlushAsync();
+
+        bool eventRaised = syncEvent.Wait(TimeSpan.FromSeconds(1));
+        Assert.That(eventRaised, Is.True);
+    }
+
+    [Test]
+    public async Task TestServerHandlesWebSocketFrameArrivingInMultipleReads()
+    {
+        await using Server server = new();
+        await server.StartAsync();
+
+        ManualResetEventSlim syncEvent = new(false);
+        server.OnDataReceived.AddObserver((e) =>
+        {
+            syncEvent.Set();
+        });
+
+        using TcpClient client = new() { NoDelay = true };
+        await client.ConnectAsync(IPAddress.Loopback, server.Port);
+        NetworkStream stream = client.GetStream();
+
+        // Complete the WebSocket upgrade handshake manually.
+        byte[] upgradeRequest = Encoding.UTF8.GetBytes(
+            "GET / HTTP/1.1\r\n" +
+            "Host: localhost\r\n" +
+            "Upgrade: websocket\r\n" +
+            "Connection: Upgrade\r\n" +
+            "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n" +
+            "Sec-WebSocket-Version: 13\r\n\r\n");
+        await stream.WriteAsync(upgradeRequest.AsMemory());
+        await stream.FlushAsync();
+
+        // Read until the complete 101 response has arrived (HTTP headers end with \r\n\r\n).
+        // A loop is required because a single ReadAsync may not return the full response.
+        byte[] responseBuffer = new byte[1024];
+        int totalRead = 0;
+        do
+        {
+            totalRead += await stream.ReadAsync(responseBuffer.AsMemory(totalRead));
+        }
+        while (!Encoding.UTF8.GetString(responseBuffer, 0, totalRead).Contains("\r\n\r\n", StringComparison.Ordinal));
+
+        // Build a complete client-to-server masked WebSocket text frame for "hello".
+        // Layout: 0x81 (FIN+Text), 0x85 (MASK+len=5), 4-byte mask key, 5 masked payload bytes.
+        byte[] maskKey = [0x37, 0xFA, 0x21, 0x3D];
+        byte[] payload = Encoding.UTF8.GetBytes("hello");
+        byte[] frame = new byte[2 + maskKey.Length + payload.Length];
+        frame[0] = 0x81;
+        frame[1] = (byte)(0x80 | payload.Length);
+        maskKey.CopyTo(frame, 2);
+        for (int i = 0; i < payload.Length; i++)
+        {
+            frame[6 + i] = (byte)(payload[i] ^ maskKey[i % 4]);
+        }
+
+        // Send only the 2-byte frame header. pending.Count (2) < keyOffset (2) + 4 = 6,
+        // so TryGetCompleteMessageLength (lines 342-344) returns false here.
+        await stream.WriteAsync(frame.AsMemory(0, 2));
+        await stream.FlushAsync();
+        await Task.Delay(50);
+
+        // Send the rest of the frame. TryGetCompleteMessageLength now returns true.
+        await stream.WriteAsync(frame.AsMemory(2, frame.Length - 2));
+        await stream.FlushAsync();
+
+        bool eventRaised = syncEvent.Wait(TimeSpan.FromSeconds(1));
+        Assert.That(eventRaised, Is.True);
+    }
+
     private class SocketAcceptanceTestServer : Server
     {
         public SocketAcceptanceTestServer()

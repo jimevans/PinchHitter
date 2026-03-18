@@ -467,7 +467,8 @@ public class Server : IAsyncDisposable
                 {
                     // Create ClientConnection, and transfer ownership of the Socket
                     // to ClientConnection, which will prevent disposal in finally block
-                    ClientConnection clientConnection = new(socket, this.httpProcessor, this.bufferSize);
+                    NetworkStream networkStream = new(socket, ownsSocket: true);
+                    ClientConnection clientConnection = new(networkStream, this.httpProcessor, this.bufferSize);
                     this.activeConnections.TryAdd(clientConnection.ConnectionId, clientConnection);
                     clientConnection.OnDataReceived.AddObserver(async (e) =>
                     {

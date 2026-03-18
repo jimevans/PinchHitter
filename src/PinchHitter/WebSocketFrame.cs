@@ -5,29 +5,11 @@
 
 namespace PinchHitter;
 
-using System.Buffers.Binary;
-
 /// <summary>
 /// Represents a data frame for the WebSocket protocol.
 /// </summary>
 public class WebSocketFrame
 {
-    // The parity bit used for identifying the WebSocket opcode in the
-    // WebSocket protocol.
-    private static readonly byte ParityBit = 0x80;
-
-    // The threshold below which the length of a WebSocket message can be
-    // expressed in a single byte.
-    private static readonly byte MessageLengthIndicatorSingleByte = 125;
-
-    // Indicates that the length of a WebSocket message is between 126 and 65535
-    // bytes, inclusive, and can therefore be expressed in a 16-bit integer.
-    private static readonly byte MessageLengthIndicatorTwoBytes = 126;
-
-    // Indicates that the length of a WebSocket message is greater than 65535
-    // bytes, and therefore must be expressed as a 64-bit integer.
-    private static readonly byte MessageLengthIndicatorEightBytes = 127;
-
     private readonly WebSocketOpcodeType opcode;
     private readonly byte[] data;
 
@@ -54,45 +36,10 @@ public class WebSocketFrame
     /// <returns>The WebSocket frame represented by the byte array.</returns>
     public static WebSocketFrame Decode(byte[] buffer)
     {
-        const byte opcodeMask = 0x0F;
-        const byte messageLengthMask = 0x7F;
-        if (buffer.Length < 2)
-        {
-            throw new ArgumentException("Buffer is too short to contain a WebSocket frame.", nameof(buffer));
-        }
-
-        WebSocketOpcodeType opcode = (WebSocketOpcodeType)(buffer[0] & opcodeMask);
-
-        byte messageLengthIndicator = Convert.ToByte(buffer[1] & messageLengthMask);
-
-        int keyOffset;
-        long messageLength;
-        if (messageLengthIndicator == MessageLengthIndicatorTwoBytes)
-        {
-            // Message length is between 126 and 65535 bytes, inclusive
-            ReadOnlySpan<byte> messageLengthSpan = new(buffer, 2, sizeof(ushort));
-            messageLength = BinaryPrimitives.ReadUInt16BigEndian(messageLengthSpan);
-            keyOffset = 4;
-        }
-        else if (messageLengthIndicator == MessageLengthIndicatorEightBytes)
-        {
-            // Message length is over 65535 bytes
-            ReadOnlySpan<byte> messageLengthSpan = new(buffer, 2, sizeof(long));
-            messageLength = BinaryPrimitives.ReadInt64BigEndian(messageLengthSpan);
-            keyOffset = 10;
-        }
-        else
-        {
-            // Message length is less than 126 bytes, and can be expressed in a
-            // single byte, so the message length indicator byte in the frame
-            // contains the actual length of the message.
-            messageLength = messageLengthIndicator;
-            keyOffset = 2;
-        }
+        WebSocketFrameHeader header = WebSocketFrameHeader.Decode(buffer);
 
         // Validate buffer has enough bytes for mask key + payload
-        long payloadStart = keyOffset + 4;
-        if (buffer.Length < payloadStart || buffer.LongLength - payloadStart < messageLength)
+        if (!header.IsHeaderComplete || buffer.Length < header.PayloadStartOffset || buffer.LongLength - header.PayloadStartOffset < header.PayloadLength)
         {
             throw new ArgumentException("Buffer is too short to contain the complete WebSocket frame.", nameof(buffer));
         }
@@ -100,15 +47,15 @@ public class WebSocketFrame
         // Incoming messages across a WebSocket are masked. The masking algorithm
         // has a four-byte mask, which each byte of the message is XOR'd with the
         // corresponding byte of the mask.
-        byte[] decoded = new byte[messageLength];
-        ArraySegment<byte> key = new(buffer, keyOffset, 4);
-        long offset = Convert.ToInt64(keyOffset + key.Count);
-        for (long index = 0; index < messageLength; index++)
+        byte[] decoded = new byte[header.PayloadLength];
+        ArraySegment<byte> key = new(buffer, header.KeyStartOffset, 4);
+        long offset = Convert.ToInt64(header.KeyStartOffset + key.Count);
+        for (long index = 0; index < header.PayloadLength; index++)
         {
             decoded[index] = Convert.ToByte(buffer[offset + index] ^ key.Array![Convert.ToInt32(key.Offset + (index % 4))]);
         }
 
-        return new WebSocketFrame(opcode, decoded);
+        return new WebSocketFrame(header.Opcode, decoded);
     }
 
     /// <summary>
@@ -155,39 +102,10 @@ public class WebSocketFrame
             return new WebSocketFrame(opcode, new byte[] { 0x88, 0x00 });
         }
 
-        byte opcodeByte = Convert.ToByte(Convert.ToByte(opcode) | ParityBit);
-        long messageLength = data.LongLength;
-
-        byte[] frameHeader = new byte[10];
-        frameHeader[0] = opcodeByte;
-
-        long dataOffset;
-        if (messageLength <= MessageLengthIndicatorSingleByte)
-        {
-            // Message length is less than 126 bytes
-            frameHeader[1] = Convert.ToByte(messageLength);
-            dataOffset = 2;
-        }
-        else if (messageLength <= 65535)
-        {
-            // Message length is between 126 and 65535 bytes, inclusive
-            frameHeader[1] = MessageLengthIndicatorTwoBytes;
-            Span<byte> messageLengthSpan = new(frameHeader, 2, sizeof(ushort));
-            BinaryPrimitives.WriteUInt16BigEndian(messageLengthSpan, Convert.ToUInt16(messageLength));
-            dataOffset = 4;
-        }
-        else
-        {
-            // Message length is over 65535 bytes
-            frameHeader[1] = MessageLengthIndicatorEightBytes;
-            Span<byte> messageLengthSpan = new(frameHeader, 2, sizeof(long));
-            BinaryPrimitives.WriteInt64BigEndian(messageLengthSpan, messageLength);
-            dataOffset = 10;
-        }
-
-        byte[] buffer = new byte[dataOffset + messageLength];
-        Array.Copy(frameHeader, buffer, dataOffset);
-        data.CopyTo(buffer, dataOffset);
-        return new WebSocketFrame(opcode, buffer);
+        WebSocketFrameHeader header = WebSocketFrameHeader.Create(opcode, data.LongLength);
+        byte[] frameData = new byte[header.PayloadStartOffset + data.Length];
+        Array.Copy(header.ToByteArray(), frameData, header.PayloadStartOffset);
+        data.CopyTo(frameData, header.PayloadStartOffset);
+        return new WebSocketFrame(opcode, frameData);
     }
 }
