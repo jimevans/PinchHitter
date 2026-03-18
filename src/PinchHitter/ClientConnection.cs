@@ -125,6 +125,7 @@ internal class ClientConnection
     {
         this.cancellationTokenSource.Cancel();
         await this.receiveDataTask.ConfigureAwait(false);
+        this.cancellationTokenSource.Dispose();
     }
 
     /// <summary>
@@ -214,7 +215,6 @@ internal class ClientConnection
         }
 
         this.clientSocket.Dispose();
-        this.cancellationTokenSource.Dispose();
         await this.onStoppedEvent.NotifyObserversAsync(new ClientConnectionEventArgs(this.connectionId)).ConfigureAwait(false);
     }
 
