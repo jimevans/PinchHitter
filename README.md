@@ -119,6 +119,58 @@ Console.WriteLine($"Data sent to client: {dataSentToClient}");
 await server.StopAsync();
 ```
 
+## SSL/TLS Support
+The PinchHitter server supports HTTPS and WSS (WebSocket Secure) connections by setting the
+`Certificate` property with an `X509Certificate2` before starting the server. When a certificate
+is set, all incoming connections are automatically upgraded to SSL/TLS.
+
+```csharp
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
+using PinchHitter;
+
+// Create or load a certificate. The example below creates a self-signed certificate,
+// which is useful for testing but should not be used in production.
+using RSA rsa = RSA.Create(2048);
+CertificateRequest certRequest = new("CN=localhost", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+using X509Certificate2 ephemeral = certRequest.CreateSelfSigned(
+    DateTimeOffset.Now.AddDays(-1), DateTimeOffset.Now.AddYears(1));
+X509Certificate2 certificate = X509CertificateLoader.LoadPkcs12(
+    ephemeral.Export(X509ContentType.Pfx), password: null);
+
+// Assign the certificate before starting the server.
+await using Server server = new();
+server.Certificate = certificate;
+await server.StartAsync();
+
+server.RegisterHandler("/index.html", new WebResourceRequestHandler(WebContent.AsHtmlDocument(
+    "<h1>Hello over HTTPS</h1>")));
+
+// Use https:// when making requests to an SSL-enabled server.
+// When using a self-signed certificate you must bypass certificate validation.
+using HttpClientHandler handler = new()
+{
+    ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
+};
+using HttpClient client = new(handler);
+HttpResponseMessage response = await client.GetAsync($"https://localhost:{server.Port}/index.html");
+
+await server.StopAsync();
+```
+
+WebSocket connections over SSL use the `wss://` scheme:
+
+```csharp
+using ClientWebSocket socket = new();
+socket.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+await socket.ConnectAsync(new Uri($"wss://localhost:{server.Port}"), CancellationToken.None);
+```
+
+The `UpgradeSslStreamAsync` method is `protected virtual` and can be overridden in a subclass if
+custom SSL stream setup is required. If the SSL handshake fails (for example, because a plain HTTP
+client connects to an HTTPS server), the server logs the failure and closes the connection without
+terminating.
+
 ## Development
 The library is built to support .NETStandard 2.0. This should allow the widest usage of the library across
 the largest number of framework versions, including .NET Framework, .NET Core, and .NET 5 and higher.

@@ -1,8 +1,12 @@
 namespace PinchHitter;
 
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
 using System.Net.WebSockets;
+using System.Security.Authentication;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 
@@ -1499,6 +1503,179 @@ public class ServerTests
 
         bool eventRaised = syncEvent.Wait(TimeSpan.FromSeconds(1));
         Assert.That(eventRaised, Is.True);
+    }
+
+    [Test]
+    public async Task TestServerWithCertificateCanProcessHttpsRequests()
+    {
+        X509Certificate2 certificate = CreateTestCertificate();
+        await using Server server = new();
+        server.Certificate = certificate;
+        await server.StartAsync();
+        server.RegisterHandler("/", new WebResourceRequestHandler("hello world"));
+
+        using HttpClientHandler handler = new()
+        {
+            ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
+        };
+        using HttpClient client = new(handler);
+        HttpResponseMessage response = await client.GetAsync($"https://localhost:{server.Port}/");
+        string content = await response.Content.ReadAsStringAsync();
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(content, Contains.Substring("hello world"));
+        });
+    }
+
+    [Test]
+    public async Task TestServerWithCertificateCanHandleWebSocketOverSsl()
+    {
+        X509Certificate2 certificate = CreateTestCertificate();
+        await using Server server = new();
+        server.Certificate = certificate;
+        await server.StartAsync();
+
+        ManualResetEventSlim connectionEvent = new(false);
+        string connectionId = string.Empty;
+        server.OnClientConnected.AddObserver((e) =>
+        {
+            connectionId = e.ConnectionId;
+            connectionEvent.Set();
+        });
+
+        using ClientWebSocket socket = new();
+        socket.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+        await socket.ConnectAsync(new Uri($"wss://localhost:{server.Port}"), CancellationToken.None);
+        connectionEvent.Wait(TimeSpan.FromSeconds(1));
+
+        ManualResetEventSlim dataReceivedEvent = new(false);
+        string? receivedData = null;
+        server.OnDataReceived.AddObserver((e) =>
+        {
+            receivedData = e.Data;
+            dataReceivedEvent.Set();
+        });
+
+        await socket.SendAsync(Encoding.UTF8.GetBytes("hello over SSL"), WebSocketMessageType.Text, true, CancellationToken.None);
+        bool eventReceived = dataReceivedEvent.Wait(TimeSpan.FromSeconds(2));
+        Assert.Multiple(() =>
+        {
+            Assert.That(eventReceived, Is.True);
+            Assert.That(receivedData, Is.EqualTo("hello over SSL"));
+        });
+    }
+
+    [Test]
+    public async Task TestServerHandlesSslHandshakeException()
+    {
+        // Connects a plain TCP client (no TLS) to an SSL-enabled server, which causes
+        // AuthenticateAsServerAsync to throw. This exercises the catch block inside the
+        // base UpgradeSslStreamAsync implementation. The test waits for the server to
+        // close the connection — a reliable signal that the failure was processed.
+        X509Certificate2 certificate = CreateTestCertificate();
+        await using Server server = new();
+        server.Certificate = certificate;
+        await server.StartAsync();
+
+        using TcpClient tcpClient = new();
+        await tcpClient.ConnectAsync(IPAddress.Loopback, server.Port);
+        NetworkStream stream = tcpClient.GetStream();
+        byte[] data = Encoding.UTF8.GetBytes("GET / HTTP/1.1\r\n\r\n");
+        await stream.WriteAsync(data.AsMemory());
+
+        // After SSL fails the server disposes the stream, closing the connection.
+        // Waiting for ReadAsync to return is a deterministic signal that the catch
+        // block in UpgradeSslStreamAsync ran and the connection was cleaned up.
+        byte[] buffer = new byte[1];
+        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(5));
+        try
+        {
+            int bytesRead = await stream.ReadAsync(buffer.AsMemory(0, 1), cts.Token);
+            Assert.That(bytesRead, Is.Zero);
+        }
+        catch (IOException) { }
+        catch (OperationCanceledException)
+        {
+            Assert.Fail("Server did not close the SSL connection within the timeout.");
+        }
+
+        Assert.That(async () => await server.StopAsync(), Throws.Nothing);
+    }
+
+    [Test]
+    public async Task TestServerHandlesAuthenticationExceptionDuringSslHandshake()
+    {
+        // Uses a subclass that throws AuthenticationException directly from
+        // UpgradeSslStreamAsync, deterministically covering the
+        // catch (AuthenticationException) branch in AcceptConnectionsAsync.
+        X509Certificate2 certificate = CreateTestCertificate();
+        await using SslAuthExceptionTestServer server = new();
+        server.Certificate = certificate;
+        await server.StartAsync();
+
+        ManualResetEventSlim socketAcceptedEvent = new(false);
+        server.OnSocketAccepted.AddObserver((_) => socketAcceptedEvent.Set());
+
+        using TcpClient tcpClient = new();
+        await tcpClient.ConnectAsync(IPAddress.Loopback, server.Port);
+
+        bool socketAccepted = socketAcceptedEvent.Wait(TimeSpan.FromSeconds(2));
+        Assert.That(socketAccepted, Is.True);
+        await Task.Delay(200);
+        Assert.That(async () => await server.StopAsync(), Throws.Nothing);
+    }
+
+    [Test]
+    public async Task TestServerHandlesIoExceptionDuringSslHandshake()
+    {
+        // Uses a subclass that throws IOException directly from UpgradeSslStreamAsync,
+        // deterministically covering the catch (IOException) branch in AcceptConnectionsAsync.
+        X509Certificate2 certificate = CreateTestCertificate();
+        await using SslIoExceptionTestServer server = new();
+        server.Certificate = certificate;
+        await server.StartAsync();
+
+        ManualResetEventSlim socketAcceptedEvent = new(false);
+        server.OnSocketAccepted.AddObserver((_) => socketAcceptedEvent.Set());
+
+        using TcpClient tcpClient = new();
+        await tcpClient.ConnectAsync(IPAddress.Loopback, server.Port);
+
+        bool socketAccepted = socketAcceptedEvent.Wait(TimeSpan.FromSeconds(2));
+        Assert.That(socketAccepted, Is.True);
+        await Task.Delay(200);
+        Assert.That(async () => await server.StopAsync(), Throws.Nothing);
+    }
+
+    private static X509Certificate2 CreateTestCertificate()
+    {
+        using RSA rsa = RSA.Create(2048);
+        CertificateRequest request = new("CN=localhost", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        using X509Certificate2 ephemeral = request.CreateSelfSigned(DateTimeOffset.Now.AddDays(-1), DateTimeOffset.Now.AddYears(1));
+
+        // Export to PFX and reimport so the private key is stored in a key container
+        // rather than as an ephemeral key. This is required on Windows (Schannel) for
+        // SslStream.AuthenticateAsServerAsync to succeed.
+        return X509CertificateLoader.LoadPkcs12(ephemeral.Export(X509ContentType.Pfx), password: null);
+    }
+
+    private class SslAuthExceptionTestServer : Server
+    {
+        protected override Task<Stream> UpgradeSslStreamAsync(Stream innerStream, X509Certificate2 certificate)
+        {
+            innerStream.Dispose();
+            throw new AuthenticationException("Simulated SSL authentication failure");
+        }
+    }
+
+    private class SslIoExceptionTestServer : Server
+    {
+        protected override Task<Stream> UpgradeSslStreamAsync(Stream innerStream, X509Certificate2 certificate)
+        {
+            innerStream.Dispose();
+            throw new IOException("Simulated I/O failure during SSL handshake");
+        }
     }
 
     private class SocketAcceptanceTestServer : Server

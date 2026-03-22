@@ -8,7 +8,10 @@ namespace PinchHitter;
 using System;
 using System.Collections.Concurrent;
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -98,6 +101,13 @@ public class Server : IAsyncDisposable
     /// Gets the read-only communication log of the server.
     /// </summary>
     public IReadOnlyList<string> Log => this.serverLog.ToList().AsReadOnly();
+
+    /// <summary>
+    /// Gets or sets the X.509 certificate to use for SSL/TLS connections. When set,
+    /// all incoming connections will be upgraded to SSL/TLS using this certificate.
+    /// When <see langword="null"/>, connections will not use SSL/TLS.
+    /// </summary>
+    public X509Certificate2? Certificate { get; set; }
 
     /// <summary>
     /// Gets or sets the size in bytes of the buffer for receiving incoming requests.
@@ -436,6 +446,28 @@ public class Server : IAsyncDisposable
         return socket;
     }
 
+    /// <summary>
+    /// Asynchronously wraps a stream in an authenticated <see cref="SslStream"/> using the specified certificate.
+    /// </summary>
+    /// <param name="innerStream">The inner stream to wrap.</param>
+    /// <param name="certificate">The certificate to use for server authentication.</param>
+    /// <returns>A task containing the authenticated SSL stream.</returns>
+    protected virtual async Task<Stream> UpgradeSslStreamAsync(Stream innerStream, X509Certificate2 certificate)
+    {
+        SslStream sslStream = new(innerStream, leaveInnerStreamOpen: false);
+        try
+        {
+            await sslStream.AuthenticateAsServerAsync(certificate).ConfigureAwait(false);
+        }
+        catch
+        {
+            sslStream.Dispose();
+            throw;
+        }
+
+        return sslStream;
+    }
+
     private async Task SendWebSocketDataInternalAsync(string connectionId, byte[] data, WebSocketOpcodeType opcode)
     {
         this.ThrowIfDisposed();
@@ -465,10 +497,32 @@ public class Server : IAsyncDisposable
                 await this.onSocketConnectedEvent.NotifyObserversAsync(EventArgs.Empty).ConfigureAwait(false);
                 if (this.IsAcceptingConnections)
                 {
-                    // Create ClientConnection, and transfer ownership of the Socket
-                    // to ClientConnection, which will prevent disposal in finally block
+                    // Create a NetworkStream and transfer ownership of the Socket to it,
+                    // which will prevent disposal in the finally block.
                     NetworkStream networkStream = new(socket, ownsSocket: true);
-                    ClientConnection clientConnection = new(networkStream, this.httpProcessor, this.bufferSize);
+                    socket = null;
+
+                    // If a certificate is configured, upgrade the stream to SSL/TLS.
+                    Stream clientStream = networkStream;
+                    if (this.Certificate is not null)
+                    {
+                        try
+                        {
+                            clientStream = await this.UpgradeSslStreamAsync(networkStream, this.Certificate).ConfigureAwait(false);
+                        }
+                        catch (AuthenticationException)
+                        {
+                            networkStream.Dispose();
+                            continue;
+                        }
+                        catch (IOException)
+                        {
+                            networkStream.Dispose();
+                            continue;
+                        }
+                    }
+
+                    ClientConnection clientConnection = new(clientStream, this.httpProcessor, this.bufferSize);
                     this.activeConnections.TryAdd(clientConnection.ConnectionId, clientConnection);
                     clientConnection.OnDataReceived.AddObserver(async (e) =>
                     {
@@ -491,7 +545,6 @@ public class Server : IAsyncDisposable
                         await this.OnClientConnectionStopped(e.ConnectionId).ConfigureAwait(false);
                     });
                     await clientConnection.StartReceivingAsync().ConfigureAwait(false);
-                    socket = null;
                     this.LogMessage("Client connected");
                 }
                 else
