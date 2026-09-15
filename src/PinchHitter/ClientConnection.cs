@@ -25,6 +25,10 @@ internal class ClientConnection
     private readonly ServerObservableEventSource<ClientConnectionDataReceivedEventArgs> onDataReceivedEvent = new();
     private readonly ServerObservableEventSource<ClientConnectionDataSentEventArgs> onDataSentEvent = new();
     private readonly ServerObservableEventSource<ClientConnectionLogMessageEventArgs> onLogMessageEvent = new();
+
+    // Completed once the WebSocket handshake response has been sent and the connection marked open.
+    // A disconnect requested while the handshake is still being completed waits on this.
+    private readonly TaskCompletionSource<bool> webSocketOpenedTaskCompletionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private WebSocketState state = WebSocketState.None;
     private Task receiveDataTask = Task.CompletedTask;
     private int ignoreCloseRequestFlag = 0;
@@ -134,6 +138,17 @@ internal class ClientConnection
     public async Task DisconnectAsync()
     {
         WebSocketState currentState = this.State;
+        if (currentState == WebSocketState.Connecting)
+        {
+            // The handshake response may already have reached the client, which then regards the
+            // connection as open, while this end has yet to mark it open. A Close frame cannot precede
+            // the handshake response, and ignoring the request would lose it silently, so wait for the
+            // handshake to complete. The connection can also end before it does, in which case the
+            // receive task completes instead and there is nothing left to close.
+            await Task.WhenAny(this.webSocketOpenedTaskCompletionSource.Task, this.receiveDataTask).ConfigureAwait(false);
+            currentState = this.State;
+        }
+
         if (currentState == WebSocketState.None)
         {
             await this.StopReceivingAsync().ConfigureAwait(false);
@@ -250,6 +265,7 @@ internal class ClientConnection
             if (request.IsWebSocketHandshakeRequest)
             {
                 this.State = WebSocketState.Open;
+                this.webSocketOpenedTaskCompletionSource.TrySetResult(true);
             }
         }
         else
