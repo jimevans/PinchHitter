@@ -265,6 +265,13 @@ public class Server : IAsyncDisposable
     /// </summary>
     /// <param name="connectionId">The ID of the client connection to disconnect.</param>
     /// <returns>The task object representing the asynchronous operation.</returns>
+    /// <remarks>
+    /// For a WebSocket connection, this method sends a Close frame to the client. The client can regard
+    /// the connection as open before the server has finished completing the WebSocket handshake, so if
+    /// the handshake is still being completed, this method waits for it to complete before sending the
+    /// Close frame. If the connection ends before the handshake completes, there is nothing to close,
+    /// and this method returns without sending anything.
+    /// </remarks>
     public async Task DisconnectAsync(string connectionId)
     {
         this.ThrowIfDisposed();

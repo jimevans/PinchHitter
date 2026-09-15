@@ -517,6 +517,93 @@ public class ServerTests
     }
 
     [Test]
+    public async Task TestServerDisconnectWaitsForWebSocketHandshakeToComplete()
+    {
+        // The client's ConnectAsync completes as soon as it reads the handshake response, but the
+        // server marks the connection open only after notifying observers that the response was sent.
+        // Holding that notification open leaves the connection in the Connecting state while the
+        // client is already connected, which deterministically places DisconnectAsync in that window.
+        await using Server server = new();
+        await server.StartAsync();
+
+        TaskCompletionSource<string> handshakeResponseSent = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource<bool> releaseHandshake = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        server.OnDataSent.AddObserver(async (e) =>
+        {
+            if (e.Data.StartsWith("HTTP/1.1 101", StringComparison.Ordinal))
+            {
+                handshakeResponseSent.SetResult(e.ConnectionId);
+                await releaseHandshake.Task;
+            }
+        });
+
+        ArraySegment<byte> buffer = WebSocket.CreateClientBuffer(1024, 1024);
+        using ClientWebSocket socket = new();
+        await socket.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
+        string connectionId = await handshakeResponseSent.Task.WaitAsync(TimeSpan.FromSeconds(1));
+
+        // DisconnectAsync reads the connection state before its first await, so the connection is
+        // known to be Connecting when this call returns its task.
+        Task disconnectTask = server.DisconnectAsync(connectionId);
+        releaseHandshake.SetResult(true);
+        await disconnectTask.WaitAsync(TimeSpan.FromSeconds(1));
+
+        WebSocketReceiveResult result = await socket.ReceiveAsync(buffer, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(1));
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.MessageType, Is.EqualTo(WebSocketMessageType.Close));
+            Assert.That(socket.State, Is.EqualTo(WebSocketState.CloseReceived));
+        });
+    }
+
+    [Test]
+    public async Task TestServerDisconnectCompletesWhenConnectionEndsDuringWebSocketHandshake()
+    {
+        // A connection can end before its handshake completes. A disconnect waiting for that handshake
+        // must then complete rather than wait for a connection that will never open, and it has nothing
+        // to close. Throwing IOException from the observer of the handshake response ends the receive
+        // loop while the connection is still in the Connecting state.
+        await using Server server = new();
+        await server.StartAsync();
+
+        TaskCompletionSource<string> handshakeResponseSent = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource<bool> releaseHandshake = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int dataSentAfterHandshakeResponse = 0;
+        server.OnDataSent.AddObserver(async (e) =>
+        {
+            if (e.Data.StartsWith("HTTP/1.1 101", StringComparison.Ordinal))
+            {
+                handshakeResponseSent.SetResult(e.ConnectionId);
+                await releaseHandshake.Task;
+                throw new IOException("Simulated connection failure during WebSocket handshake");
+            }
+
+            Interlocked.Increment(ref dataSentAfterHandshakeResponse);
+        });
+
+        ManualResetEventSlim disconnectedEvent = new(false);
+        server.OnClientDisconnected.AddObserver((e) =>
+        {
+            disconnectedEvent.Set();
+        });
+
+        using ClientWebSocket socket = new();
+        await socket.ConnectAsync(new Uri($"ws://localhost:{server.Port}"), CancellationToken.None);
+        string connectionId = await handshakeResponseSent.Task.WaitAsync(TimeSpan.FromSeconds(1));
+
+        Task disconnectTask = server.DisconnectAsync(connectionId);
+        releaseHandshake.SetResult(true);
+        await disconnectTask.WaitAsync(TimeSpan.FromSeconds(1));
+
+        bool disconnected = disconnectedEvent.Wait(TimeSpan.FromSeconds(1));
+        Assert.Multiple(() =>
+        {
+            Assert.That(disconnected, Is.True);
+            Assert.That(dataSentAfterHandshakeResponse, Is.EqualTo(0));
+        });
+    }
+
+    [Test]
     public async Task TestServerCanReceiveWebSocketDataFromClient()
     {
         await using Server server = new();
