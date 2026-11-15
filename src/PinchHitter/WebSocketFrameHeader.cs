@@ -61,36 +61,6 @@ public record WebSocketFrameHeader
     public long PayloadLength { get; private set; }
 
     /// <summary>
-    /// Encodes the WebSocket frame header to a byte array that can be sent over the network.
-    /// </summary>
-    /// <returns>The byte array containing the encoded header.</returns>
-    public byte[] ToByteArray()
-    {
-        byte opcodeByte = Convert.ToByte(Convert.ToByte(this.Opcode) | ParityBit);
-        byte[] headerBytes;
-        if (this.PayloadLength <= MessageLengthIndicatorSingleByte)
-        {
-            headerBytes = new byte[] { opcodeByte, Convert.ToByte(this.PayloadLength) };
-        }
-        else if (this.PayloadLength <= ushort.MaxValue)
-        {
-            headerBytes = new byte[MinimumHeaderLength + sizeof(ushort)];
-            headerBytes[0] = opcodeByte;
-            headerBytes[1] = MessageLengthIndicatorTwoBytes;
-            BinaryPrimitives.WriteUInt16BigEndian(headerBytes.AsSpan(MinimumHeaderLength), Convert.ToUInt16(this.PayloadLength));
-        }
-        else
-        {
-            headerBytes = new byte[MinimumHeaderLength + sizeof(long)];
-            headerBytes[0] = opcodeByte;
-            headerBytes[1] = MessageLengthIndicatorEightBytes;
-            BinaryPrimitives.WriteInt64BigEndian(headerBytes.AsSpan(MinimumHeaderLength), this.PayloadLength);
-        }
-
-        return headerBytes;
-    }
-
-    /// <summary>
     /// Creates a WebSocket frame header for the given opcode and payload length,
     /// which can be used to construct a complete WebSocket frame for sending data
     /// over the network.
@@ -166,5 +136,35 @@ public record WebSocketFrameHeader
             PayloadStartOffset = payloadStartOffset,
             PayloadLength = payloadLength,
         };
+    }
+
+    /// <summary>
+    /// Encodes the WebSocket frame header to a byte array that can be sent over the network.
+    /// </summary>
+    /// <returns>The byte array containing the encoded header.</returns>
+    public byte[] ToByteArray()
+    {
+        byte opcodeByte = Convert.ToByte(Convert.ToByte(this.Opcode) | ParityBit);
+        byte[] headerBytes;
+        if (this.PayloadLength <= MessageLengthIndicatorSingleByte)
+        {
+            headerBytes = new byte[] { opcodeByte, Convert.ToByte(this.PayloadLength) };
+        }
+        else if (this.PayloadLength <= ushort.MaxValue)
+        {
+            headerBytes = new byte[MinimumHeaderLength + sizeof(ushort)];
+            headerBytes[0] = opcodeByte;
+            headerBytes[1] = MessageLengthIndicatorTwoBytes;
+            BinaryPrimitives.WriteUInt16BigEndian(headerBytes.AsSpan(MinimumHeaderLength), Convert.ToUInt16(this.PayloadLength));
+        }
+        else
+        {
+            headerBytes = new byte[MinimumHeaderLength + sizeof(long)];
+            headerBytes[0] = opcodeByte;
+            headerBytes[1] = MessageLengthIndicatorEightBytes;
+            BinaryPrimitives.WriteInt64BigEndian(headerBytes.AsSpan(MinimumHeaderLength), this.PayloadLength);
+        }
+
+        return headerBytes;
     }
 }
