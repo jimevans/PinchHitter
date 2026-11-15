@@ -29,6 +29,10 @@ internal class ClientConnection
     // Completed once the WebSocket handshake response has been sent and the connection marked open.
     // A disconnect requested while the handshake is still being completed waits on this.
     private readonly TaskCompletionSource<bool> webSocketOpenedTaskCompletionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    // Completed when the receive loop ends. Unlike receiveDataTask, this is valid while the loop is still
+    // running synchronously inside StartReceivingAsync, before that task has been assigned.
+    private readonly TaskCompletionSource<bool> receiveEndedTaskCompletionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private WebSocketState state = WebSocketState.None;
     private Task receiveDataTask = Task.CompletedTask;
     private int ignoreCloseRequestFlag = 0;
@@ -145,7 +149,7 @@ internal class ClientConnection
             // the handshake response, and ignoring the request would lose it silently, so wait for the
             // handshake to complete. The connection can also end before it does, in which case the
             // receive task completes instead and there is nothing left to close.
-            await Task.WhenAny(this.webSocketOpenedTaskCompletionSource.Task, this.receiveDataTask).ConfigureAwait(false);
+            await Task.WhenAny(this.webSocketOpenedTaskCompletionSource.Task, this.receiveEndedTaskCompletionSource.Task).ConfigureAwait(false);
             currentState = this.State;
         }
 
@@ -233,6 +237,7 @@ internal class ClientConnection
         }
 
         this.clientStream.Dispose();
+        this.receiveEndedTaskCompletionSource.TrySetResult(true);
         await this.onStoppedEvent.NotifyObserversAsync(new ClientConnectionEventArgs(this.connectionId)).ConfigureAwait(false);
     }
 

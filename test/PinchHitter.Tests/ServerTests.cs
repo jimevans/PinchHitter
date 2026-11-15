@@ -604,6 +604,81 @@ public class ServerTests
     }
 
     [Test]
+    public async Task TestServerDisconnectDuringSynchronouslyProcessedWebSocketHandshakeSendsCloseFrame()
+    {
+        // When the handshake request is already buffered as the receive loop starts, the loop
+        // processes the whole handshake synchronously inside the accept loop. Blocking the
+        // client-connected notification until the request is written forces that, and disconnecting
+        // from the handshake response notification lands in the Connecting window.
+        await using Server server = new();
+        await server.StartAsync();
+
+        using ManualResetEventSlim requestWritten = new(false);
+        server.OnClientConnected.AddObserver((e) =>
+        {
+            requestWritten.Wait(TimeSpan.FromSeconds(2));
+        });
+
+        Task? disconnectTask = null;
+        server.OnDataSent.AddObserver((e) =>
+        {
+            if (e.Data.StartsWith("HTTP/1.1 101", StringComparison.Ordinal))
+            {
+                disconnectTask = server.DisconnectAsync(e.ConnectionId);
+            }
+        });
+
+        using TcpClient client = new() { NoDelay = true };
+        await client.ConnectAsync(IPAddress.Loopback, server.Port);
+        NetworkStream stream = client.GetStream();
+        byte[] upgradeRequest = Encoding.UTF8.GetBytes(
+            "GET / HTTP/1.1\r\n" +
+            "Host: localhost\r\n" +
+            "Upgrade: websocket\r\n" +
+            "Connection: Upgrade\r\n" +
+            "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n" +
+            "Sec-WebSocket-Version: 13\r\n\r\n");
+        await stream.WriteAsync(upgradeRequest.AsMemory());
+        await stream.FlushAsync();
+        requestWritten.Set();
+
+        // Read the 101 response and the first byte of the frame that follows it.
+        byte[] responseBuffer = new byte[1024];
+        int totalRead = 0;
+        int headerEnd = -1;
+        using CancellationTokenSource cancellationTokenSource = new(TimeSpan.FromSeconds(2));
+        try
+        {
+            while (headerEnd < 0 || totalRead <= headerEnd + 4)
+            {
+                int bytesRead = await stream.ReadAsync(responseBuffer.AsMemory(totalRead), cancellationTokenSource.Token);
+                if (bytesRead == 0)
+                {
+                    break;
+                }
+
+                totalRead += bytesRead;
+                headerEnd = Encoding.UTF8.GetString(responseBuffer, 0, totalRead).IndexOf("\r\n\r\n", StringComparison.Ordinal);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Asserted below: no frame followed the handshake response.
+        }
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(disconnectTask, Is.Not.Null);
+            Assert.That(headerEnd, Is.GreaterThan(0));
+            Assert.That(totalRead, Is.GreaterThan(headerEnd + 4));
+        });
+
+        // 0x88 is FIN + Close.
+        Assert.That(responseBuffer[headerEnd + 4], Is.EqualTo(0x88));
+        await disconnectTask!.WaitAsync(TimeSpan.FromSeconds(1));
+    }
+
+    [Test]
     public async Task TestServerCanReceiveWebSocketDataFromClient()
     {
         await using Server server = new();
